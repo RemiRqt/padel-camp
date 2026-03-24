@@ -5,7 +5,8 @@ Application de gestion et réservation pour le club **Padel Camp Achères**.
 - **Stack** : React 18 (Vite) + Tailwind CSS + Supabase (Auth, PostgreSQL, Storage, Edge Functions)
 - **Design** : Mobile-first, style Apple, font Poppins, charte couleurs bleu marine #0B2778 + lime #D4E620
 - **PWA** : Progressive Web App (manifest + service worker)
-- **Hosting** : Vercel ou Netlify (à définir)
+- **Hosting** : Vercel — https://padel-camp-iota.vercel.app
+- **Repo** : https://github.com/RemiRqt/padel-camp
 
 ## Informations du club
 - Nom : Padel Camp Achères
@@ -630,19 +631,34 @@ L'utilisateur voit un solde global unique (balance + balance_bonus). La ventilat
 - **Glass effect** : `backdrop-filter: blur(40px)` pour bottom nav
 - **Séparateurs** : `0.5px solid rgba(0,0,0,0.04)`
 
-## Phase 1 — MVP (à construire maintenant)
-1. Setup : Vite + React + Tailwind + Supabase client
-2. Exécuter le schéma SQL dans Supabase (SQL Editor)
-3. Auth : inscription, connexion, déconnexion, AuthContext, ProtectedRoute, AdminRoute
-4. Config club admin
-5. Calendrier de réservation avec invitation joueurs
-6. Fonctions SQL : debit_user, credit_user (déjà dans le schéma)
-7. Dashboard admin avec KPIs (CA réel vs bonus)
-8. Gestion des membres
-9. Page publique (landing + dispos + tournois + événements + Instagram)
-10. Module articles additionnels
-11. Point de vente admin
-12. Responsive complet (mobile + desktop)
+## État actuel — MVP livré le 24/03/2026
+
+### Pages implémentées (24 pages)
+**Publiques** : Landing (/), Login, Register, AuthCallback
+**User** : Dashboard, Booking (grille 3 terrains), BookingConfirm (4 joueurs, paiement indépendant), Profile, Tournaments, TournamentDetail, TournamentRegister, MyTournaments, Social (amis + matchs), Events
+**Admin** : Dashboard (8 KPIs + recharts), Bookings, Members, Recharge, Formulas, Tournaments, Events, Products, POS (onglets sessions/articles, grille terrains), Settings
+
+### Système de paiement
+- Prix session ÷ 4 joueurs (padel = 4 joueurs toujours)
+- Paiement indépendant par joueur (solde/CB/espèces)
+- Montant modifiable par l'admin dans le POS
+- Trigger SQL `update_booking_payment_status` auto-met à jour `bookings.payment_status` (pending → partial → paid)
+- Fonctions SQL `debit_user()` (bonus first) et `credit_user()` (avec formules)
+
+### Migrations SQL
+- `001_initial_schema.sql` : tables, enums, index, triggers, fonctions, RLS, données initiales
+- `002_payment_status.sql` : champs payment_status sur bookings + booking_players, trigger auto
+- `003_social.sql` : tables friends + matches + RLS
+- `004_seed_data.sql` : 10 membres test, ~670 résas mars, transactions, tournois, événements, produits
+
+### Navigation
+- **Mobile** : Header fixe (logo + burger menu plein écran) + Bottom nav (Accueil, Réserver, Social, Tournois, Compte)
+- **Desktop** : Sidebar gauche avec tous les liens user + admin
+
+### Déploiement
+- `git push` → Vercel auto-deploy
+- Variables env dans Vercel : VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
+- Supabase Auth redirect URL : https://padel-camp-iota.vercel.app/auth/callback
 
 ## Conventions de code
 - Composants React : PascalCase, fichiers .jsx
