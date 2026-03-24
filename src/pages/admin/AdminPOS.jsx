@@ -176,22 +176,38 @@ export default function AdminPOS() {
     finally { setSubmitting(false) }
   }
 
-  // Assign player to an empty slot
+  // Add player directly (INSERT, works for old and new bookings)
   const handleAddPlayer = async (member) => {
     if (!selectedBooking) return
-    // Find first empty slot
-    const emptySlot = sessionPlayers.find((p) => p.player_name === 'Place disponible')
-    if (!emptySlot) { toast.error('Aucune place disponible'); return }
+    if (sessionPlayers.filter((p) => p.player_name !== 'Place disponible').length >= 4) {
+      toast.error('Maximum 4 joueurs'); return
+    }
     setSubmitting(true)
     try {
       const isString = typeof member === 'string'
-      await assignPlayerToSlot({
-        slotId: emptySlot.id,
-        bookingId: selectedBooking.id,
-        userId: isString ? null : member.id,
-        playerName: isString ? member : member.display_name,
-        paymentMethod: isString ? 'cb' : 'balance',
-      })
+      const defaultAmount = Math.round((parseFloat(selectedBooking.price) / 4) * 100) / 100
+
+      // Check if there's an empty "Place disponible" slot to reuse
+      const emptySlot = sessionPlayers.find((p) => p.player_name === 'Place disponible')
+      if (emptySlot) {
+        await supabase.from('booking_players').update({
+          user_id: isString ? null : member.id,
+          player_name: isString ? member : member.display_name,
+          payment_method: isString ? 'cb' : 'balance',
+          amount: defaultAmount,
+          payment_status: 'pending',
+        }).eq('id', emptySlot.id)
+      } else {
+        await supabase.from('booking_players').insert({
+          booking_id: selectedBooking.id,
+          user_id: isString ? null : member.id,
+          player_name: isString ? member : member.display_name,
+          parts: 1,
+          payment_method: isString ? 'cb' : 'balance',
+          amount: defaultAmount,
+          payment_status: 'pending',
+        })
+      }
       toast.success('Joueur ajouté')
       setMemberSearch('')
       setMemberResults([])
@@ -204,6 +220,26 @@ export default function AdminPOS() {
     const name = prompt('Nom du joueur externe ?')
     if (!name) return
     handleAddPlayer(name)
+  }
+
+  // Update player amount
+  const handleUpdateAmount = async (playerId, newAmount) => {
+    try {
+      await supabase.from('booking_players').update({ amount: parseFloat(newAmount) }).eq('id', playerId)
+      await refreshSession()
+    } catch (err) { toast.error(err.message) }
+  }
+
+  // Remove player (reset to empty or delete)
+  const handleRemovePlayer = async (player) => {
+    if (!confirm(`Retirer ${player.player_name} ?`)) return
+    setSubmitting(true)
+    try {
+      await supabase.from('booking_players').delete().eq('id', player.id)
+      toast.success('Joueur retiré')
+      await refreshSession()
+    } catch (err) { toast.error(err.message) }
+    finally { setSubmitting(false) }
   }
 
   // Product cart
@@ -399,138 +435,168 @@ export default function AdminPOS() {
 
       {/* Session modal */}
       <Modal isOpen={sessionModal} onClose={() => setSessionModal(false)} title="Détail session" className="!max-w-lg">
-        {selectedBooking && (
-          <div className="space-y-4">
-            {/* Booking info */}
-            <div className="bg-bg rounded-[12px] p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold">{selectedBooking.user_name}</p>
-                  <p className="text-xs text-text-secondary">
-                    {courtLabel(selectedBooking.court_id)} · {formatTime(selectedBooking.start_time)} – {formatTime(selectedBooking.end_time)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-bold text-primary">{parseFloat(selectedBooking.price).toFixed(2)}€</p>
-                  <Badge color={selectedBooking.payment_status === 'paid' ? 'success' : selectedBooking.payment_status === 'partial' ? 'warning' : 'gray'}>
-                    {selectedBooking.payment_status === 'paid' ? 'Payée' : selectedBooking.payment_status === 'partial' ? 'Partiel' : 'Non payée'}
-                  </Badge>
+        {selectedBooking && (() => {
+          const total = parseFloat(selectedBooking.price)
+          const defaultShare = Math.round((total / 4) * 100) / 100
+          const realPlayers = sessionPlayers.filter((p) => p.player_name !== 'Place disponible')
+          const paid = realPlayers.reduce((s, p) => s + (p.payment_status !== 'pending' ? parseFloat(p.amount) : 0), 0)
+          const remaining = total - paid
+          const isSessionPaid = selectedBooking.payment_status === 'paid'
+          const canAdd = realPlayers.length < 4 && !isSessionPaid
+
+          return (
+            <div className="space-y-4">
+              {/* Booking info */}
+              <div className="bg-bg rounded-[12px] p-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold">{selectedBooking.user_name}</p>
+                    <p className="text-xs text-text-secondary">
+                      {courtLabel(selectedBooking.court_id)} · {formatTime(selectedBooking.start_time)} – {formatTime(selectedBooking.end_time)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-primary">{total.toFixed(2)}€</p>
+                    <p className="text-[10px] text-text-tertiary">{defaultShare.toFixed(2)}€ / joueur</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Payment summary */}
-            {(() => {
-              const total = parseFloat(selectedBooking.price)
-              const paid = sessionPlayers.reduce((s, p) => s + (p.payment_status !== 'pending' ? parseFloat(p.amount) : 0), 0)
-              const remaining = total - paid
-              return (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-[8px] bg-bg p-2">
-                    <p className="text-[9px] text-text-tertiary uppercase">Total</p>
-                    <p className="text-sm font-bold text-primary">{total.toFixed(2)}€</p>
-                  </div>
-                  <div className="rounded-[8px] bg-success/10 p-2">
-                    <p className="text-[9px] text-text-tertiary uppercase">Payé</p>
-                    <p className="text-sm font-bold text-success">{paid.toFixed(2)}€</p>
-                  </div>
-                  <div className={`rounded-[8px] p-2 ${remaining > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
-                    <p className="text-[9px] text-text-tertiary uppercase">Reste</p>
-                    <p className={`text-sm font-bold ${remaining > 0 ? 'text-warning' : 'text-success'}`}>{remaining.toFixed(2)}€</p>
-                  </div>
+              {/* Payment summary */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-[8px] bg-bg p-2">
+                  <p className="text-[9px] text-text-tertiary uppercase">Total</p>
+                  <p className="text-sm font-bold text-primary">{total.toFixed(2)}€</p>
                 </div>
-              )
-            })()}
+                <div className="rounded-[8px] bg-success/10 p-2">
+                  <p className="text-[9px] text-text-tertiary uppercase">Payé</p>
+                  <p className="text-sm font-bold text-success">{paid.toFixed(2)}€</p>
+                </div>
+                <div className={`rounded-[8px] p-2 ${remaining > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
+                  <p className="text-[9px] text-text-tertiary uppercase">Reste</p>
+                  <p className={`text-sm font-bold ${remaining > 0 ? 'text-warning' : 'text-success'}`}>{remaining.toFixed(2)}€</p>
+                </div>
+              </div>
 
-            {/* Players */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-text-secondary uppercase">Joueurs ({sessionPlayers.length})</p>
-                {selectedBooking.payment_status !== 'paid' && sessionPlayers.length < 4 && (
-                  <button onClick={handleAddExternal} className="text-xs text-primary font-medium cursor-pointer hover:underline">
-                    <UserPlus className="w-3 h-3 inline mr-0.5" />Ajouter
-                  </button>
+              {/* Players list */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-text-secondary uppercase">Joueurs ({realPlayers.length}/4)</p>
+                </div>
+
+                {sessionLoading ? (
+                  <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-16 rounded-[10px] bg-bg animate-pulse" />)}</div>
+                ) : (
+                  <div className="space-y-2">
+                    {realPlayers.map((p, idx) => {
+                      const badge = PAY_BADGE[p.payment_status] || PAY_BADGE.pending
+                      const isPending = p.payment_status === 'pending'
+                      const isMember = !!p.user_id
+                      const isReservant = idx === 0
+
+                      return (
+                        <div key={p.id} className="rounded-[10px] bg-bg p-3 space-y-2">
+                          {/* Player info row */}
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              <span className="text-xs font-bold text-primary">{p.player_name.charAt(0).toUpperCase()}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1">
+                                <p className="text-sm font-medium truncate">{p.player_name}</p>
+                                {isReservant && <span className="text-[8px] bg-primary/10 text-primary px-1 py-0.5 rounded">Rés.</span>}
+                              </div>
+                              <p className="text-[10px] text-text-tertiary">{isMember ? 'Membre' : 'Externe'}</p>
+                            </div>
+                            <Badge color={badge.color}>{badge.label}</Badge>
+                          </div>
+
+                          {/* Amount editor + payment (only if pending) */}
+                          {isPending && !isSessionPaid && (
+                            <>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-text-secondary">Montant :</span>
+                                <input
+                                  type="number" step="0.01" min="0"
+                                  defaultValue={parseFloat(p.amount).toFixed(2)}
+                                  onBlur={(e) => handleUpdateAmount(p.id, e.target.value)}
+                                  className="w-20 px-2 py-1 rounded-lg bg-white border border-separator text-sm text-center font-semibold text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                />
+                                <span className="text-xs text-text-tertiary">€</span>
+                              </div>
+                              <div className="flex gap-1.5">
+                                {isMember && (
+                                  <Button size="sm" className="flex-1" onClick={() => handlePayBalance(p)} loading={submitting}>
+                                    <Wallet className="w-3 h-3 mr-1" />Solde
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="ghost" className="flex-1" onClick={() => handlePayExternal(p, 'cb')} loading={submitting}>
+                                  <CreditCard className="w-3 h-3 mr-1" />CB
+                                </Button>
+                                <Button size="sm" variant="ghost" className="flex-1" onClick={() => handlePayExternal(p, 'cash')} loading={submitting}>
+                                  <Banknote className="w-3 h-3 mr-1" />Cash
+                                </Button>
+                              </div>
+                              {/* Remove (not reservant) */}
+                              {!isReservant && (
+                                <button onClick={() => handleRemovePlayer(p)} className="text-[10px] text-danger hover:underline cursor-pointer">
+                                  Retirer
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
 
-              {sessionLoading ? (
-                <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-14 rounded-[10px] bg-bg animate-pulse" />)}</div>
-              ) : (
+              {/* Add players section */}
+              {canAdd && (
                 <div className="space-y-2">
-                  {sessionPlayers.map((p) => {
-                    const badge = PAY_BADGE[p.payment_status] || PAY_BADGE.pending
-                    const isPending = p.payment_status === 'pending'
-                    const isSessionPaid = selectedBooking.payment_status === 'paid'
-                    const isMember = !!p.user_id
+                  <p className="text-xs font-semibold text-text-secondary uppercase">Ajouter un joueur</p>
 
-                    return (
-                      <div key={p.id} className="rounded-[10px] bg-bg p-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <span className="text-xs font-bold text-primary">{p.player_name.charAt(0).toUpperCase()}</span>
+                  {/* Member search */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+                    <input type="text" placeholder="Rechercher un membre du club..."
+                      value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-[10px] bg-white border border-separator text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  </div>
+                  {memberResults.length > 0 && (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {memberResults.map((m) => (
+                        <button key={m.id} onClick={() => handleAddPlayer(m)}
+                          className="w-full flex items-center gap-2 p-2.5 rounded-[10px] hover:bg-bg text-left text-sm cursor-pointer transition-colors">
+                          <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <span className="text-xs font-bold text-primary">{m.display_name.charAt(0).toUpperCase()}</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{p.player_name}</p>
-                            <p className="text-[10px] text-text-tertiary">{isMember ? 'Membre' : 'Externe'}</p>
-                          </div>
-                          <Badge color={badge.color}>{badge.label}</Badge>
-                          <span className="text-sm font-bold text-primary">{parseFloat(p.amount).toFixed(2)}€</span>
-                        </div>
+                          <span className="font-medium flex-1">{m.display_name}</span>
+                          <span className="text-xs text-text-tertiary">{(parseFloat(m.balance || 0) + parseFloat(m.balance_bonus || 0)).toFixed(2)}€</span>
+                          <UserPlus className="w-4 h-4 text-primary shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
-                        {/* Admin payment actions */}
-                        {isPending && !isSessionPaid && (
-                          <div className="flex gap-1.5 mt-2 pt-2 border-t border-separator/50">
-                            {isMember && (
-                              <Button size="sm" className="flex-1" onClick={() => handlePayBalance(p)} loading={submitting}>
-                                <Wallet className="w-3 h-3 mr-1" />Solde
-                              </Button>
-                            )}
-                            <Button size="sm" variant="ghost" className="flex-1" onClick={() => handlePayExternal(p, 'cb')} loading={submitting}>
-                              <CreditCard className="w-3 h-3 mr-1" />CB
-                            </Button>
-                            <Button size="sm" variant="ghost" className="flex-1" onClick={() => handlePayExternal(p, 'cash')} loading={submitting}>
-                              <Banknote className="w-3 h-3 mr-1" />Cash
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                  {/* External player button */}
+                  <button onClick={handleAddExternal}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] border-2 border-dashed border-separator hover:border-primary/30 hover:bg-primary/5 text-sm font-medium text-primary transition-colors cursor-pointer">
+                    <UserPlus className="w-4 h-4" />Joueur externe (sans compte)
+                  </button>
+                </div>
+              )}
+
+              {isSessionPaid && (
+                <div className="flex items-center gap-2 py-3 px-4 rounded-[10px] bg-success/5 border border-success/20">
+                  <Lock className="w-4 h-4 text-success" />
+                  <p className="text-sm text-success font-medium">Session entièrement payée</p>
                 </div>
               )}
             </div>
-
-            {/* Add member search */}
-            {selectedBooking.payment_status !== 'paid' && sessionPlayers.length < 4 && (
-              <div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-                  <input type="text" placeholder="Ajouter un membre..." value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-[10px] bg-white border border-separator text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
-                </div>
-                {memberResults.length > 0 && (
-                  <div className="mt-1 space-y-1 max-h-28 overflow-y-auto">
-                    {memberResults.map((m) => (
-                      <button key={m.id} onClick={() => handleAddPlayer(m)}
-                        className="w-full flex items-center gap-2 p-2 rounded-lg hover:bg-bg text-left text-sm cursor-pointer">
-                        <span className="font-medium">{m.display_name}</span>
-                        <span className="text-xs text-text-tertiary">{(parseFloat(m.balance || 0) + parseFloat(m.balance_bonus || 0)).toFixed(2)}€</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {selectedBooking.payment_status === 'paid' && (
-              <div className="flex items-center gap-2 py-3 px-4 rounded-[10px] bg-success/5 border border-success/20">
-                <Lock className="w-4 h-4 text-success" />
-                <p className="text-sm text-success font-medium">Session entièrement payée — encaissement verrouillé</p>
-              </div>
-            )}
-          </div>
-        )}
+          )
+        })()}
       </Modal>
 
       {/* Sale modal */}
