@@ -11,6 +11,7 @@ import Login from '@/pages/public/Login'
 import Register from '@/pages/public/Register'
 import Tournaments from '@/pages/public/Tournaments'
 import Events from '@/pages/public/Events'
+import AuthCallback from '@/pages/AuthCallback'
 
 // Pages utilisateur
 import Dashboard from '@/pages/user/Dashboard'
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
 
           {/* Routes avec layout (nav) */}
           <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
