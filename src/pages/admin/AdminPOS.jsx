@@ -2,14 +2,15 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/context/AuthContext'
 import { useBookings } from '@/hooks/useBookings'
+import { useClub } from '@/hooks/useClub'
 import { toDateString, formatTime } from '@/utils/formatDate'
+import { generateSlots, isSlotBooked } from '@/utils/slots'
+import { getSlotPrice } from '@/utils/calculatePrice'
 import {
-  getBookingWithPlayers, payPlayerShare, markPlayerExternal,
-  assignPlayerToSlot, searchMembers, partPrice
+  getBookingWithPlayers, payPlayerShare, markPlayerExternal, searchMembers
 } from '@/services/bookingService'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
-import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
@@ -19,19 +20,27 @@ import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import {
   ShoppingCart, Search, UserPlus, Wallet, CreditCard, Banknote,
-  Package, Users, Minus, Plus, Lock, ChevronDown, ChevronUp, Eye
+  Package, Users, Minus, Plus, Lock, Eye, CalendarDays
 } from 'lucide-react'
 
 const PAY_BADGE = {
   paid: { color: 'success', label: 'Payé' },
-  external: { color: 'primary', label: 'CB/Espèces' },
+  external: { color: 'primary', label: 'CB/Esp.' },
   pending: { color: 'warning', label: 'En attente' },
 }
+const COURTS = [
+  { id: 'terrain_1', short: 'T1' },
+  { id: 'terrain_2', short: 'T2' },
+  { id: 'terrain_3', short: 'T3' },
+]
 
 export default function AdminPOS() {
   const { user: admin } = useAuth()
   const todayRef = useRef(new Date())
-  const { bookings: todayBookings, loading: bLoading } = useBookings(todayRef.current)
+  const { bookings: todayBookings, loading: bLoading, refetch: refetchBookings } = useBookings(todayRef.current)
+  const { config, pricingRules } = useClub()
+
+  const [tab, setTab] = useState('sessions') // 'sessions' | 'articles'
 
   // Products
   const [categories, setCategories] = useState([])
@@ -60,6 +69,38 @@ export default function AdminPOS() {
   const [to, setTo] = useState(toDateString(todayRef.current))
   const [salesToday, setSalesToday] = useState([])
 
+  const slots = useMemo(() => generateSlots(config), [config])
+
+  // Build a map: bookingId → booking for quick lookup
+  const bookingMap = useMemo(() => {
+    const map = {}
+    todayBookings.forEach((b) => { map[`${b.court_id}_${b.start_time.slice(0, 5)}`] = b })
+    return map
+  }, [todayBookings])
+
+  // Fetch booking_players counts for all today's bookings
+  const [playerCounts, setPlayerCounts] = useState({}) // bookingId → { total, paid }
+  useEffect(() => {
+    if (todayBookings.length === 0) { setPlayerCounts({}); return }
+    async function fetchCounts() {
+      const ids = todayBookings.map((b) => b.id)
+      const { data } = await supabase
+        .from('booking_players')
+        .select('booking_id, payment_status, player_name')
+        .in('booking_id', ids)
+      if (!data) return
+      const counts = {}
+      data.forEach((p) => {
+        if (p.player_name === 'Place disponible') return
+        if (!counts[p.booking_id]) counts[p.booking_id] = { total: 0, paid: 0 }
+        counts[p.booking_id].total++
+        if (p.payment_status === 'paid' || p.payment_status === 'external') counts[p.booking_id].paid++
+      })
+      setPlayerCounts(counts)
+    }
+    fetchCounts()
+  }, [todayBookings])
+
   useEffect(() => {
     async function fetchProducts() {
       try {
@@ -77,17 +118,13 @@ export default function AdminPOS() {
 
   useEffect(() => {
     async function fetchSales() {
-      try {
-        const { data } = await supabase
-          .from('transactions')
-          .select('*')
-          .in('type', ['debit_product', 'debit_session', 'external_payment'])
-          .gte('created_at', from + 'T00:00:00')
-          .lte('created_at', to + 'T23:59:59')
-          .order('created_at', { ascending: false })
-          .limit(50)
-        setSalesToday(data || [])
-      } catch (err) { console.error('[POS] sales error:', err) }
+      const { data } = await supabase
+        .from('transactions')
+        .select('*')
+        .in('type', ['debit_product', 'debit_session', 'external_payment'])
+        .gte('created_at', from + 'T00:00:00').lte('created_at', to + 'T23:59:59')
+        .order('created_at', { ascending: false }).limit(50)
+      setSalesToday(data || [])
     }
     fetchSales()
   }, [from, to, submitting])
@@ -97,23 +134,16 @@ export default function AdminPOS() {
   // Member search
   useEffect(() => {
     if (memberSearch.length < 2) { setMemberResults([]); return }
-    const t = setTimeout(async () => {
-      const data = await searchMembers(memberSearch)
-      setMemberResults(data)
-    }, 300)
+    const t = setTimeout(async () => { setMemberResults(await searchMembers(memberSearch)) }, 300)
     return () => clearTimeout(t)
   }, [memberSearch])
-
   useEffect(() => {
     if (saleSearch.length < 2) { setSaleResults([]); return }
-    const t = setTimeout(async () => {
-      const data = await searchMembers(saleSearch)
-      setSaleResults(data)
-    }, 300)
+    const t = setTimeout(async () => { setSaleResults(await searchMembers(saleSearch)) }, 300)
     return () => clearTimeout(t)
   }, [saleSearch])
 
-  // Open session detail
+  // Open session
   const openSession = async (booking) => {
     setSelectedBooking(booking)
     setSessionLoading(true)
@@ -122,21 +152,16 @@ export default function AdminPOS() {
     try {
       const { players } = await getBookingWithPlayers(booking.id)
       setSessionPlayers(players)
-    } catch (err) {
-      toast.error('Erreur chargement joueurs')
-      setSessionPlayers([])
-    } finally {
-      setSessionLoading(false)
-    }
+    } catch { setSessionPlayers([]) }
+    finally { setSessionLoading(false) }
   }
 
   const refreshSession = async () => {
     if (!selectedBooking) return
-    try {
-      const { booking, players } = await getBookingWithPlayers(selectedBooking.id)
-      setSelectedBooking(booking)
-      setSessionPlayers(players)
-    } catch { /* ignore */ }
+    const { booking, players } = await getBookingWithPlayers(selectedBooking.id)
+    setSelectedBooking(booking)
+    setSessionPlayers(players)
+    refetchBookings()
   }
 
   // Pay from balance
@@ -145,11 +170,8 @@ export default function AdminPOS() {
     setSubmitting(true)
     try {
       await payPlayerShare({
-        playerId: player.id,
-        bookingId: selectedBooking.id,
-        userId: player.user_id,
-        amount: parseFloat(player.amount),
-        performedBy: admin.id,
+        playerId: player.id, bookingId: selectedBooking.id,
+        userId: player.user_id, amount: parseFloat(player.amount), performedBy: admin.id,
       })
       toast.success(`${player.player_name} — solde débité`)
       await refreshSession()
@@ -163,12 +185,9 @@ export default function AdminPOS() {
     setSubmitting(true)
     try {
       await markPlayerExternal({
-        playerId: player.id,
-        bookingId: selectedBooking.id,
-        paymentMethod: method,
-        amount: parseFloat(player.amount),
-        playerName: player.player_name,
-        performedBy: admin.id,
+        playerId: player.id, bookingId: selectedBooking.id,
+        paymentMethod: method, amount: parseFloat(player.amount),
+        playerName: player.player_name, performedBy: admin.id,
       })
       toast.success(`${player.player_name} — ${method} enregistré`)
       await refreshSession()
@@ -176,41 +195,35 @@ export default function AdminPOS() {
     finally { setSubmitting(false) }
   }
 
-  // Add player directly (INSERT, works for old and new bookings)
+  // Add player
   const handleAddPlayer = async (member) => {
     if (!selectedBooking) return
-    if (sessionPlayers.filter((p) => p.player_name !== 'Place disponible').length >= 4) {
-      toast.error('Maximum 4 joueurs'); return
-    }
+    const realPlayers = sessionPlayers.filter((p) => p.player_name !== 'Place disponible')
+    if (realPlayers.length >= 4) { toast.error('Maximum 4 joueurs'); return }
     setSubmitting(true)
     try {
       const isString = typeof member === 'string'
       const defaultAmount = Math.round((parseFloat(selectedBooking.price) / 4) * 100) / 100
-
-      // Check if there's an empty "Place disponible" slot to reuse
       const emptySlot = sessionPlayers.find((p) => p.player_name === 'Place disponible')
+
       if (emptySlot) {
         await supabase.from('booking_players').update({
           user_id: isString ? null : member.id,
           player_name: isString ? member : member.display_name,
           payment_method: isString ? 'cb' : 'balance',
-          amount: defaultAmount,
-          payment_status: 'pending',
+          amount: defaultAmount, payment_status: 'pending',
         }).eq('id', emptySlot.id)
       } else {
         await supabase.from('booking_players').insert({
           booking_id: selectedBooking.id,
           user_id: isString ? null : member.id,
           player_name: isString ? member : member.display_name,
-          parts: 1,
-          payment_method: isString ? 'cb' : 'balance',
-          amount: defaultAmount,
-          payment_status: 'pending',
+          parts: 1, payment_method: isString ? 'cb' : 'balance',
+          amount: defaultAmount, payment_status: 'pending',
         })
       }
       toast.success('Joueur ajouté')
-      setMemberSearch('')
-      setMemberResults([])
+      setMemberSearch(''); setMemberResults([])
       await refreshSession()
     } catch (err) { toast.error(err.message) }
     finally { setSubmitting(false) }
@@ -218,19 +231,16 @@ export default function AdminPOS() {
 
   const handleAddExternal = () => {
     const name = prompt('Nom du joueur externe ?')
-    if (!name) return
-    handleAddPlayer(name)
+    if (name) handleAddPlayer(name)
   }
 
-  // Update player amount
   const handleUpdateAmount = async (playerId, newAmount) => {
-    try {
-      await supabase.from('booking_players').update({ amount: parseFloat(newAmount) }).eq('id', playerId)
-      await refreshSession()
-    } catch (err) { toast.error(err.message) }
+    const val = parseFloat(newAmount)
+    if (isNaN(val) || val < 0) return
+    await supabase.from('booking_players').update({ amount: val }).eq('id', playerId)
+    await refreshSession()
   }
 
-  // Remove player (reset to empty or delete)
   const handleRemovePlayer = async (player) => {
     if (!confirm(`Retirer ${player.player_name} ?`)) return
     setSubmitting(true)
@@ -245,20 +255,15 @@ export default function AdminPOS() {
   // Product cart
   const addToCart = (product) => {
     setCart((prev) => {
-      const existing = prev.find((c) => c.product.id === product.id)
-      if (existing) return prev.map((c) => c.product.id === product.id ? { ...c, qty: c.qty + 1 } : c)
+      const ex = prev.find((c) => c.product.id === product.id)
+      if (ex) return prev.map((c) => c.product.id === product.id ? { ...c, qty: c.qty + 1 } : c)
       return [...prev, { product, qty: 1 }]
     })
   }
-  const updateCartQty = (productId, delta) => {
-    setCart((prev) => prev.map((c) => c.product.id === productId ? { ...c, qty: c.qty + delta } : c).filter((c) => c.qty > 0))
+  const updateCartQty = (pid, delta) => {
+    setCart((prev) => prev.map((c) => c.product.id === pid ? { ...c, qty: c.qty + delta } : c).filter((c) => c.qty > 0))
   }
   const cartTotal = cart.reduce((s, c) => s + c.qty * parseFloat(c.product.price), 0)
-
-  const openSale = () => {
-    if (cart.length === 0) { toast.error('Panier vide'); return }
-    setSelectedBuyer(null); setSaleSearch(''); setSalePayment('balance'); setSaleModal(true)
-  }
 
   const submitSale = async () => {
     setSubmitting(true)
@@ -281,8 +286,7 @@ export default function AdminPOS() {
           })
         }
       }
-      toast.success('Vente enregistrée')
-      setCart([]); setSaleModal(false)
+      toast.success('Vente enregistrée'); setCart([]); setSaleModal(false)
     } catch (err) { toast.error(err.message) }
     finally { setSubmitting(false) }
   }
@@ -300,56 +304,135 @@ export default function AdminPOS() {
 
   return (
     <PageWrapper>
-      <div className="space-y-5">
+      <div className="space-y-4">
         <div className="flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-primary" />
           <h1 className="text-2xl font-bold text-text">Point de vente</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Sessions */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Sessions du jour</h2>
-              <Badge color="primary">{todayBookings.length}</Badge>
-            </div>
-            {bLoading ? (
-              [1, 2, 3].map((i) => <div key={i} className="h-16 rounded-[16px] bg-white animate-pulse" />)
-            ) : todayBookings.length === 0 ? (
-              <Card className="text-center !py-6">
-                <p className="text-sm text-text-tertiary">Aucune réservation aujourd'hui</p>
-              </Card>
-            ) : (
-              todayBookings.map((b) => {
-                const isPaid = b.payment_status === 'paid'
-                return (
-                  <Card key={b.id} className={`!p-4 ${isPaid ? 'opacity-60' : ''}`}>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-text">{b.user_name}</p>
-                        <p className="text-xs text-text-secondary">
-                          {courtLabel(b.court_id)} · {formatTime(b.start_time)} – {formatTime(b.end_time)}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-primary">{parseFloat(b.price).toFixed(0)}€</p>
-                        <Badge color={isPaid ? 'success' : b.payment_status === 'partial' ? 'warning' : 'gray'}>
-                          {isPaid ? 'Payée' : b.payment_status === 'partial' ? 'Partiel' : 'Non payée'}
-                        </Badge>
-                      </div>
-                      <Button size="sm" variant={isPaid ? 'ghost' : 'primary'} onClick={() => openSession(b)}>
-                        {isPaid ? <Eye className="w-4 h-4" /> : <><Users className="w-4 h-4 mr-1" />Encaisser</>}
-                      </Button>
-                    </div>
-                  </Card>
-                )
-              })
-            )}
-          </div>
+        {/* Tabs */}
+        <div className="flex rounded-[12px] bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+          <button onClick={() => setTab('sessions')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] text-sm font-semibold transition-all cursor-pointer ${
+              tab === 'sessions' ? 'bg-primary text-white' : 'text-text-secondary'}`}>
+            <CalendarDays className="w-4 h-4" />Sessions
+          </button>
+          <button onClick={() => setTab('articles')}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-[10px] text-sm font-semibold transition-all cursor-pointer ${
+              tab === 'articles' ? 'bg-primary text-white' : 'text-text-secondary'}`}>
+            <Package className="w-4 h-4" />Articles
+          </button>
+        </div>
 
-          {/* Products */}
+        {/* ===== SESSIONS TAB ===== */}
+        {tab === 'sessions' && (
+          <>
+            {/* Grid 3 terrains × créneaux */}
+            <Card className="!p-0 overflow-hidden">
+              <div className="grid grid-cols-[56px_1fr_1fr_1fr] border-b border-separator">
+                <div className="p-2 text-[10px] font-semibold text-text-tertiary uppercase text-center">Heure</div>
+                {COURTS.map((c) => (
+                  <div key={c.id} className="p-2 text-center text-[10px] font-semibold text-text-secondary uppercase">{c.short}</div>
+                ))}
+              </div>
+
+              {bLoading ? (
+                Array.from({ length: 6 }, (_, i) => (
+                  <div key={i} className="grid grid-cols-[56px_1fr_1fr_1fr] border-b border-separator last:border-0">
+                    {[0,1,2,3].map((j) => <div key={j} className="p-1"><div className="h-14 rounded-lg bg-bg animate-pulse" /></div>)}
+                  </div>
+                ))
+              ) : (
+                slots.map((slot) => (
+                  <div key={slot.start} className="grid grid-cols-[56px_1fr_1fr_1fr] border-b border-separator last:border-0">
+                    <div className="p-1 flex flex-col items-center justify-center">
+                      <span className="text-[11px] font-semibold text-text leading-none">{formatTime(slot.start)}</span>
+                      <span className="text-[9px] text-text-tertiary leading-none mt-0.5">{formatTime(slot.end)}</span>
+                    </div>
+                    {COURTS.map((court) => {
+                      const key = `${court.id}_${slot.start}`
+                      const booking = bookingMap[key]
+                      const booked = !!booking
+                      const pc = booking ? playerCounts[booking.id] : null
+                      const isPaid = booking?.payment_status === 'paid'
+                      const isPartial = booking?.payment_status === 'partial'
+
+                      if (!booked) {
+                        return (
+                          <div key={court.id} className="p-1">
+                            <div className="w-full h-14 rounded-lg bg-green-50 flex items-center justify-center">
+                              <span className="text-xs font-semibold text-green-600">Libre</span>
+                            </div>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div key={court.id} className="p-1">
+                          <button
+                            onClick={() => openSession(booking)}
+                            className={`w-full h-14 rounded-lg flex flex-col items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                              isPaid ? 'bg-success/10' : isPartial ? 'bg-warning/10' : 'bg-red-50'
+                            }`}
+                          >
+                            <span className={`text-[10px] font-bold ${isPaid ? 'text-success' : isPartial ? 'text-warning' : 'text-red-500'}`}>
+                              {isPaid ? '✓ Payée' : isPartial ? 'Partiel' : 'Non payée'}
+                            </span>
+                            <span className="text-[9px] text-text-tertiary">
+                              {pc ? `${pc.total}/4 joueurs` : '0/4'}
+                              {pc && pc.paid > 0 && !isPaid ? ` · ${pc.paid} payé${pc.paid > 1 ? 's' : ''}` : ''}
+                            </span>
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))
+              )}
+            </Card>
+
+            {/* Légende */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1">
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-green-50 border border-green-200" /><span className="text-xs text-text-secondary">Libre</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-50 border border-red-200" /><span className="text-xs text-text-secondary">Non payée</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-warning/10 border border-warning/20" /><span className="text-xs text-text-secondary">Partiel</span></div>
+              <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-success/10 border border-success/20" /><span className="text-xs text-text-secondary">Payée</span></div>
+            </div>
+
+            {/* Sales history */}
+            <Card>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                <h3 className="font-semibold text-text">Historique</h3>
+                <div className="flex items-center gap-2">
+                  <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
+                  <ExportButtons
+                    onExcel={() => exportExcel(exportRows, exportCols, `pos_${from}_${to}`)}
+                    onPDF={() => exportPDF(exportRows, exportCols, `pos_${from}_${to}`, 'POS')}
+                  />
+                </div>
+              </div>
+              {salesToday.length === 0 ? (
+                <p className="text-sm text-text-tertiary text-center py-4">Aucune vente</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {salesToday.map((tx) => (
+                    <div key={tx.id} className="flex items-center justify-between py-2 px-3 rounded-[10px] bg-bg">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-text truncate">{tx.description}</p>
+                        <p className="text-[10px] text-text-tertiary">{new Date(tx.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                      <span className="text-sm font-semibold text-danger">-{parseFloat(tx.amount).toFixed(2)}€</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </>
+        )}
+
+        {/* ===== ARTICLES TAB ===== */}
+        {tab === 'articles' && (
           <div className="space-y-4">
-            <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Articles</h2>
             <div className="flex gap-1.5 overflow-x-auto pb-1">
               {categories.map((cat) => (
                 <button key={cat.id} onClick={() => setActiveCat(cat.id)}
@@ -359,7 +442,7 @@ export default function AdminPOS() {
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {filteredProducts.map((p) => (
                 <button key={p.id} onClick={() => addToCart(p)}
                   className="p-3 rounded-[14px] bg-white hover:shadow-[0_4px_12px_rgba(11,39,120,0.1)] transition-all text-left cursor-pointer active:scale-95">
@@ -377,16 +460,10 @@ export default function AdminPOS() {
                     <div key={item.product.id} className="flex items-center justify-between">
                       <p className="text-sm text-text truncate flex-1">{item.product.name}</p>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => updateCartQty(item.product.id, -1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer">
-                          <Minus className="w-3 h-3" />
-                        </button>
+                        <button onClick={() => updateCartQty(item.product.id, -1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer"><Minus className="w-3 h-3" /></button>
                         <span className="text-sm font-semibold w-6 text-center">{item.qty}</span>
-                        <button onClick={() => updateCartQty(item.product.id, 1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer">
-                          <Plus className="w-3 h-3" />
-                        </button>
-                        <span className="text-sm font-semibold text-primary w-14 text-right">
-                          {(item.qty * parseFloat(item.product.price)).toFixed(2)}€
-                        </span>
+                        <button onClick={() => updateCartQty(item.product.id, 1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer"><Plus className="w-3 h-3" /></button>
+                        <span className="text-sm font-semibold text-primary w-14 text-right">{(item.qty * parseFloat(item.product.price)).toFixed(2)}€</span>
                       </div>
                     </div>
                   ))}
@@ -395,45 +472,16 @@ export default function AdminPOS() {
                   <span className="font-semibold">Total</span>
                   <span className="text-xl font-bold text-primary">{cartTotal.toFixed(2)}€</span>
                 </div>
-                <Button className="w-full mt-3" onClick={openSale}>Encaisser {cartTotal.toFixed(2)}€</Button>
+                <Button className="w-full mt-3" onClick={() => { setSelectedBuyer(null); setSaleSearch(''); setSalePayment('balance'); setSaleModal(true) }}>
+                  Encaisser {cartTotal.toFixed(2)}€
+                </Button>
               </Card>
             )}
           </div>
-        </div>
-
-        {/* Sales history */}
-        <Card>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-            <h3 className="font-semibold text-text">Historique ventes</h3>
-            <div className="flex items-center gap-2">
-              <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
-              <ExportButtons
-                onExcel={() => exportExcel(exportRows, exportCols, `pos_${from}_${to}`)}
-                onPDF={() => exportPDF(exportRows, exportCols, `pos_${from}_${to}`, 'Padel Camp — POS')}
-              />
-            </div>
-          </div>
-          {salesToday.length === 0 ? (
-            <p className="text-sm text-text-tertiary text-center py-4">Aucune vente</p>
-          ) : (
-            <div className="space-y-1.5 max-h-64 overflow-y-auto">
-              {salesToday.map((tx) => (
-                <div key={tx.id} className="flex items-center justify-between py-2 px-3 rounded-[10px] bg-bg">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-text truncate">{tx.description}</p>
-                    <p className="text-[10px] text-text-tertiary">
-                      {new Date(tx.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-danger">-{parseFloat(tx.amount).toFixed(2)}€</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        )}
       </div>
 
-      {/* Session modal */}
+      {/* ===== SESSION MODAL ===== */}
       <Modal isOpen={sessionModal} onClose={() => setSessionModal(false)} title="Détail session" className="!max-w-lg">
         {selectedBooking && (() => {
           const total = parseFloat(selectedBooking.price)
@@ -446,14 +494,11 @@ export default function AdminPOS() {
 
           return (
             <div className="space-y-4">
-              {/* Booking info */}
               <div className="bg-bg rounded-[12px] p-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-semibold">{selectedBooking.user_name}</p>
-                    <p className="text-xs text-text-secondary">
-                      {courtLabel(selectedBooking.court_id)} · {formatTime(selectedBooking.start_time)} – {formatTime(selectedBooking.end_time)}
-                    </p>
+                    <p className="text-xs text-text-secondary">{courtLabel(selectedBooking.court_id)} · {formatTime(selectedBooking.start_time)} – {formatTime(selectedBooking.end_time)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-primary">{total.toFixed(2)}€</p>
@@ -462,7 +507,6 @@ export default function AdminPOS() {
                 </div>
               </div>
 
-              {/* Payment summary */}
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-[8px] bg-bg p-2">
                   <p className="text-[9px] text-text-tertiary uppercase">Total</p>
@@ -478,14 +522,11 @@ export default function AdminPOS() {
                 </div>
               </div>
 
-              {/* Players list */}
+              {/* Players */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-text-secondary uppercase">Joueurs ({realPlayers.length}/4)</p>
-                </div>
-
+                <p className="text-xs font-semibold text-text-secondary uppercase mb-2">Joueurs ({realPlayers.length}/4)</p>
                 {sessionLoading ? (
-                  <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-16 rounded-[10px] bg-bg animate-pulse" />)}</div>
+                  <div className="space-y-2">{[1,2].map((i) => <div key={i} className="h-16 rounded-[10px] bg-bg animate-pulse" />)}</div>
                 ) : (
                   <div className="space-y-2">
                     {realPlayers.map((p, idx) => {
@@ -496,7 +537,6 @@ export default function AdminPOS() {
 
                       return (
                         <div key={p.id} className="rounded-[10px] bg-bg p-3 space-y-2">
-                          {/* Player info row */}
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                               <span className="text-xs font-bold text-primary">{p.player_name.charAt(0).toUpperCase()}</span>
@@ -511,13 +551,11 @@ export default function AdminPOS() {
                             <Badge color={badge.color}>{badge.label}</Badge>
                           </div>
 
-                          {/* Amount editor + payment (only if pending) */}
                           {isPending && !isSessionPaid && (
                             <>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-text-secondary">Montant :</span>
-                                <input
-                                  type="number" step="0.01" min="0"
+                                <input type="number" step="0.01" min="0"
                                   defaultValue={parseFloat(p.amount).toFixed(2)}
                                   onBlur={(e) => handleUpdateAmount(p.id, e.target.value)}
                                   className="w-20 px-2 py-1 rounded-lg bg-white border border-separator text-sm text-center font-semibold text-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -537,11 +575,8 @@ export default function AdminPOS() {
                                   <Banknote className="w-3 h-3 mr-1" />Cash
                                 </Button>
                               </div>
-                              {/* Remove (not reservant) */}
                               {!isReservant && (
-                                <button onClick={() => handleRemovePlayer(p)} className="text-[10px] text-danger hover:underline cursor-pointer">
-                                  Retirer
-                                </button>
+                                <button onClick={() => handleRemovePlayer(p)} className="text-[10px] text-danger hover:underline cursor-pointer">Retirer</button>
                               )}
                             </>
                           )}
@@ -552,38 +587,33 @@ export default function AdminPOS() {
                 )}
               </div>
 
-              {/* Add players section */}
+              {/* Add players */}
               {canAdd && (
                 <div className="space-y-2">
                   <p className="text-xs font-semibold text-text-secondary uppercase">Ajouter un joueur</p>
-
-                  {/* Member search */}
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-                    <input type="text" placeholder="Rechercher un membre du club..."
-                      value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)}
+                    <input type="text" placeholder="Rechercher un membre..." value={memberSearch} onChange={(e) => setMemberSearch(e.target.value)}
                       className="w-full pl-10 pr-4 py-2.5 rounded-[10px] bg-white border border-separator text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
                   </div>
                   {memberResults.length > 0 && (
                     <div className="space-y-1 max-h-32 overflow-y-auto">
                       {memberResults.map((m) => (
                         <button key={m.id} onClick={() => handleAddPlayer(m)}
-                          className="w-full flex items-center gap-2 p-2.5 rounded-[10px] hover:bg-bg text-left text-sm cursor-pointer transition-colors">
+                          className="w-full flex items-center gap-2 p-2.5 rounded-[10px] hover:bg-bg text-left text-sm cursor-pointer">
                           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                             <span className="text-xs font-bold text-primary">{m.display_name.charAt(0).toUpperCase()}</span>
                           </div>
                           <span className="font-medium flex-1">{m.display_name}</span>
-                          <span className="text-xs text-text-tertiary">{(parseFloat(m.balance || 0) + parseFloat(m.balance_bonus || 0)).toFixed(2)}€</span>
+                          <span className="text-xs text-text-tertiary">{(parseFloat(m.balance||0)+parseFloat(m.balance_bonus||0)).toFixed(2)}€</span>
                           <UserPlus className="w-4 h-4 text-primary shrink-0" />
                         </button>
                       ))}
                     </div>
                   )}
-
-                  {/* External player button */}
                   <button onClick={handleAddExternal}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-[10px] border-2 border-dashed border-separator hover:border-primary/30 hover:bg-primary/5 text-sm font-medium text-primary transition-colors cursor-pointer">
-                    <UserPlus className="w-4 h-4" />Joueur externe (sans compte)
+                    <UserPlus className="w-4 h-4" />Joueur externe
                   </button>
                 </div>
               )}
@@ -626,7 +656,7 @@ export default function AdminPOS() {
                     {saleResults.map((m) => (
                       <button key={m.id} onClick={() => { setSelectedBuyer(m); setSaleSearch('') }}
                         className="w-full text-left p-2 rounded-lg hover:bg-bg text-sm cursor-pointer">
-                        {m.display_name} <span className="text-text-tertiary">— {(parseFloat(m.balance || 0) + parseFloat(m.balance_bonus || 0)).toFixed(2)}€</span>
+                        {m.display_name} <span className="text-text-tertiary">— {(parseFloat(m.balance||0)+parseFloat(m.balance_bonus||0)).toFixed(2)}€</span>
                       </button>
                     ))}
                   </div>
@@ -653,9 +683,7 @@ export default function AdminPOS() {
               })}
             </div>
           </div>
-          <Button className="w-full" loading={submitting} onClick={submitSale}>
-            Encaisser {cartTotal.toFixed(2)}€
-          </Button>
+          <Button className="w-full" loading={submitting} onClick={submitSale}>Encaisser {cartTotal.toFixed(2)}€</Button>
         </div>
       </Modal>
     </PageWrapper>
