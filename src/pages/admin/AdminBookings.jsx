@@ -43,7 +43,7 @@ export default function AdminBookings() {
   useEffect(() => {
     async function fetchDayEvents() {
       const [tRes, eRes] = await Promise.all([
-        supabase.from('tournaments').select('name, start_time, end_time').eq('date', dateStr).not('status', 'eq', 'cancelled'),
+        supabase.from('tournaments').select('name, start_time, end_time, level, category').eq('date', dateStr).not('status', 'eq', 'cancelled'),
         supabase.from('events').select('name, start_time, end_time').eq('date', dateStr),
       ])
       setDayEvents([
@@ -203,7 +203,11 @@ export default function AdminBookings() {
                       <div key={court.id} className="p-1.5 border-l border-separator">
                         <div className="h-full min-h-[56px] rounded-[10px] bg-primary/10 flex items-center justify-center gap-1 px-2">
                           {blocking.type === 'tournament' ? <Trophy className="w-3.5 h-3.5 text-primary shrink-0" /> : <Star className="w-3.5 h-3.5 text-lime-dark shrink-0" />}
-                          <span className="text-[10px] font-medium text-primary truncate">{blocking.name}</span>
+                          <span className="text-[10px] font-medium text-primary truncate">
+                            {blocking.type === 'tournament' && blocking.level
+                              ? `${blocking.level} ${blocking.category === 'hommes' ? 'H' : blocking.category === 'femmes' ? 'F' : 'M'}`
+                              : blocking.name}
+                          </span>
                         </div>
                       </div>
                     )

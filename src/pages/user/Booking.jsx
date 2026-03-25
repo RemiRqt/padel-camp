@@ -39,7 +39,7 @@ export default function Booking() {
     const dateStr = toDateString(selectedDate)
     async function fetchDayEvents() {
       const [tRes, eRes] = await Promise.all([
-        supabase.from('tournaments').select('name, start_time, end_time').eq('date', dateStr).not('status', 'eq', 'cancelled'),
+        supabase.from('tournaments').select('name, start_time, end_time, level, category').eq('date', dateStr).not('status', 'eq', 'cancelled'),
         supabase.from('events').select('name, start_time, end_time').eq('date', dateStr),
       ])
       setDayEvents([
@@ -223,7 +223,11 @@ export default function Booking() {
                               {blocking ? (
                                 <span className="flex items-center gap-0.5 truncate px-1">
                                   {blocking.type === 'tournament' ? <Trophy className="w-3 h-3 shrink-0" /> : <Star className="w-3 h-3 shrink-0" />}
-                                  <span className="truncate">{blocking.name}</span>
+                                  <span className="truncate">
+                                    {blocking.type === 'tournament' && blocking.level
+                                      ? `${blocking.level} ${blocking.category === 'hommes' ? 'H' : blocking.category === 'femmes' ? 'F' : 'M'}`
+                                      : blocking.name}
+                                  </span>
                                 </span>
                               ) : booked ? 'Complet' : past ? '—' : `${price.toFixed(0)}€`}
                             </button>
