@@ -52,16 +52,38 @@ export function useUserBookings(userId) {
     if (!userId) return
     async function fetch() {
       const today = toDateString(new Date())
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('status', 'confirmed')
-        .gte('date', today)
-        .order('date')
-        .order('start_time')
-        .limit(5)
-      if (!error && data) setBookings(data)
+
+      // Get bookings created by user OR where user is an accepted player
+      const [ownRes, invitedRes] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'confirmed')
+          .gte('date', today)
+          .order('date')
+          .order('start_time')
+          .limit(10),
+        supabase
+          .from('booking_players')
+          .select('booking_id, booking:bookings(*)')
+          .eq('user_id', userId)
+          .eq('invitation_status', 'accepted')
+          .limit(20),
+      ])
+
+      const ownBookings = ownRes.data || []
+      // Filter invited bookings: confirmed, upcoming, not already in own
+      const ownIds = new Set(ownBookings.map((b) => b.id))
+      const invitedBookings = (invitedRes.data || [])
+        .map((p) => p.booking)
+        .filter((b) => b && b.status === 'confirmed' && b.date >= today && !ownIds.has(b.id))
+
+      const all = [...ownBookings, ...invitedBookings]
+        .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time))
+        .slice(0, 5)
+
+      setBookings(all)
       setLoading(false)
     }
     fetch()
