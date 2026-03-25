@@ -174,7 +174,7 @@ export default function AdminMembers() {
   }))
 
   return (
-    <PageWrapper>
+    <PageWrapper wide>
       <div className="space-y-5">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -234,7 +234,7 @@ export default function AdminMembers() {
             <p className="text-sm text-text-tertiary">Aucun membre trouvé</p>
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2">
             {filtered.map((m) => {
               const total = parseFloat(m.balance) + parseFloat(m.balance_bonus)
               return (

@@ -138,7 +138,7 @@ export default function AdminProducts() {
   }))
 
   return (
-    <PageWrapper>
+    <PageWrapper wide>
       <div className="space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export default function AdminProducts() {
             <p className="text-sm text-text-tertiary">Aucun article dans cette catégorie</p>
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2">
             {filteredProducts.map((p) => (
               <Card key={p.id} className="!p-4">
                 <div className="flex items-center gap-3">

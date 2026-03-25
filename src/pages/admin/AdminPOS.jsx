@@ -303,7 +303,7 @@ export default function AdminPOS() {
   }))
 
   return (
-    <PageWrapper>
+    <PageWrapper wide>
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <ShoppingCart className="w-5 h-5 text-primary" />

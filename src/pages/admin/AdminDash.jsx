@@ -163,7 +163,7 @@ export default function AdminDash() {
   }
 
   return (
-    <PageWrapper>
+    <PageWrapper wide>
       <div className="space-y-5">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -339,11 +339,11 @@ export default function AdminDash() {
         {/* Actions rapides */}
         <Card>
           <h3 className="font-semibold text-text mb-3">Actions rapides</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
             {[
               { to: '/admin/members', icon: Users, label: 'Membres', color: 'bg-primary/5 text-primary' },
               { to: '/admin/bookings', icon: CalendarDays, label: 'Réservations', color: 'bg-primary/5 text-primary' },
-              { to: '/admin/recharge', icon: Wallet, label: 'Recharger', color: 'bg-success/5 text-success' },
+              { to: '/admin/members', icon: Wallet, label: 'Créditer', color: 'bg-success/5 text-success' },
               { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente', color: 'bg-warning/5 text-warning' },
               { to: '/admin/tournaments', icon: Trophy, label: 'Tournois', color: 'bg-primary/5 text-primary' },
               { to: '/admin/products', icon: Package, label: 'Articles', color: 'bg-lime/10 text-primary' },

@@ -126,7 +126,7 @@ export default function AdminBookings() {
   }))
 
   return (
-    <PageWrapper>
+    <PageWrapper wide>
       <div className="space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export default function AdminBookings() {
             <p className="text-sm text-text-tertiary">Aucune réservation trouvée</p>
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {bookings.map((b) => {
               const stats = getPlayerStats(b.booking_players)
               const isCancelled = b.status === 'cancelled'

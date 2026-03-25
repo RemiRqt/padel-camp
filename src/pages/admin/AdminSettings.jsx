@@ -166,7 +166,7 @@ export default function AdminSettings() {
 
   if (clubLoading || !config) {
     return (
-      <PageWrapper title="Paramètres">
+      <PageWrapper wide title="Paramètres">
         <div className="space-y-3">
           {[1, 2, 3].map((i) => <div key={i} className="h-24 rounded-[16px] bg-white animate-pulse" />)}
         </div>
@@ -175,7 +175,7 @@ export default function AdminSettings() {
   }
 
   return (
-    <PageWrapper>
+    <PageWrapper wide>
       <div className="space-y-5">
         <div className="flex items-center gap-2">
           <Settings className="w-5 h-5 text-primary" />
