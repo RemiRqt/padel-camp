@@ -230,8 +230,9 @@ export default function AdminPOS() {
   }
 
   const handleAddExternal = () => {
-    const name = prompt('Nom du joueur externe ?')
-    if (name) handleAddPlayer(name)
+    const externalCount = sessionPlayers.filter((p) => p.player_name !== 'Place disponible' && !p.user_id).length
+    const name = `Joueur externe ${externalCount + 1}`
+    handleAddPlayer(name)
   }
 
   const handleUpdateAmount = async (playerId, newAmount) => {

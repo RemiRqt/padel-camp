@@ -47,8 +47,6 @@ export default function BookingConfirm() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
-  const [addingExternal, setAddingExternal] = useState(false)
-  const [externalName, setExternalName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [cancelling, setCancelling] = useState(false)
 
@@ -121,24 +119,23 @@ export default function BookingConfirm() {
     finally { setSubmitting(false) }
   }
 
-  // Assign external player to empty slot
+  // Assign external player to empty slot (auto-named)
   const handleAssignExternal = async () => {
-    if (!externalName.trim()) { toast.error('Nom obligatoire'); return }
     const slot = emptySlots[0]
     if (!slot) { toast.error('Aucune place disponible'); return }
+    const externalCount = filledPlayers.filter((p) => !p.user_id).length
+    const name = `Joueur externe ${externalCount + 1}`
     setSubmitting(true)
     try {
       await assignPlayerToSlot({
         slotId: selectedSlotId || slot.id,
         bookingId: id,
         userId: null,
-        playerName: externalName.trim(),
+        playerName: name,
         paymentMethod: 'cb',
       })
-      toast.success(`${externalName.trim()} ajouté`)
+      toast.success(`${name} ajouté`)
       setAddOpen(false)
-      setExternalName('')
-      setAddingExternal(false)
       setSelectedSlotId(null)
       await fetchData()
     } catch (err) { toast.error(err.message) }
@@ -330,7 +327,7 @@ export default function BookingConfirm() {
                       {!isPaid && isOwner && (
                         <Button
                           variant="ghost" size="sm"
-                          onClick={() => { setSelectedSlotId(player.id); setAddOpen(true); setAddingExternal(false); setSearchQuery('') }}
+                          onClick={() => { setSelectedSlotId(player.id); setAddOpen(true); setSearchQuery('') }}
                         >
                           <UserPlus className="w-4 h-4 mr-1" />Inviter
                         </Button>
@@ -418,12 +415,10 @@ export default function BookingConfirm() {
       {/* Add player modal */}
       <Modal
         isOpen={addOpen}
-        onClose={() => { setAddOpen(false); setAddingExternal(false) }}
+        onClose={() => { setAddOpen(false);  }}
         title="Ajouter un joueur"
       >
         <div className="space-y-4">
-          {!addingExternal ? (
-            <>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
                 <input
@@ -470,34 +465,13 @@ export default function BookingConfirm() {
 
               <div className="border-t border-separator pt-3">
                 <button
-                  onClick={() => setAddingExternal(true)}
+                  onClick={handleAssignExternal}
+                  disabled={submitting}
                   className="w-full flex items-center justify-center gap-2 py-3 rounded-[12px] bg-bg hover:bg-primary/5 transition-colors text-sm font-medium text-primary cursor-pointer"
                 >
-                  <UserPlus className="w-4 h-4" />Joueur externe (non-membre)
+                  <UserPlus className="w-4 h-4" />Ajouter un joueur externe
                 </button>
               </div>
-            </>
-          ) : (
-            <>
-              <button onClick={() => setAddingExternal(false)} className="text-xs text-primary font-medium hover:underline cursor-pointer">
-                &larr; Retour
-              </button>
-              <Input
-                label="Nom du joueur"
-                placeholder="Jean Dupont"
-                value={externalName}
-                onChange={(e) => setExternalName(e.target.value)}
-                autoFocus
-              />
-              <div className="bg-bg rounded-[12px] p-3 text-center">
-                <p className="text-xs text-text-secondary">Part par joueur</p>
-                <p className="text-lg font-bold text-primary">{share.toFixed(2)}€</p>
-              </div>
-              <Button className="w-full" loading={submitting} onClick={handleAssignExternal}>
-                <Check className="w-4 h-4 mr-1" />Ajouter
-              </Button>
-            </>
-          )}
         </div>
       </Modal>
     </PageWrapper>
