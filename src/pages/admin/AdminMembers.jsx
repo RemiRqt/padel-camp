@@ -12,7 +12,8 @@ import ExportButtons from '@/components/ui/ExportButtons'
 import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import {
-  Search, UserPlus, Wallet, Gift, ChevronRight, Shield, Users, Filter
+  Search, UserPlus, Wallet, Gift, ChevronRight, Shield, Users, Filter,
+  CreditCard, Banknote
 } from 'lucide-react'
 
 export default function AdminMembers() {
@@ -33,6 +34,7 @@ export default function AdminMembers() {
   const [creditMode, setCreditMode] = useState('formula') // 'formula' | 'free'
   const [selectedFormula, setSelectedFormula] = useState(null)
   const [freeAmount, setFreeAmount] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cb') // 'cb' | 'cash'
   const [crediting, setCrediting] = useState(false)
 
   // Create member form
@@ -89,6 +91,7 @@ export default function AdminMembers() {
     setCreditMode('formula')
     setSelectedFormula(formulas[0] || null)
     setFreeAmount('')
+    setPaymentMethod('cb')
     setCreditOpen(true)
   }
 
@@ -109,14 +112,15 @@ export default function AdminMembers() {
         return
       }
 
+      const methodLabel = paymentMethod === 'cb' ? 'CB' : 'Espèces'
       const { error } = await supabase.rpc('credit_user', {
         p_user_id: selectedMember.id,
         p_performed_by: adminUser.id,
         p_amount_paid: amountPaid,
         p_amount_credited: amountCredited,
         p_description: creditMode === 'formula'
-          ? `Recharge formule ${amountPaid}€ → ${amountCredited}€`
-          : `Crédit libre ${amountPaid}€`,
+          ? `Recharge formule ${amountPaid}€ → ${amountCredited}€ (${methodLabel})`
+          : `Crédit libre ${amountPaid}€ (${methodLabel})`,
       })
       if (error) throw error
 
@@ -352,6 +356,33 @@ export default function AdminMembers() {
                 placeholder="50.00"
               />
             )}
+
+            {/* Choix mode de paiement */}
+            <div>
+              <p className="text-xs font-medium text-text-secondary mb-2">Mode de paiement</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPaymentMethod('cb')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[12px] text-sm font-medium transition-all cursor-pointer ${
+                    paymentMethod === 'cb'
+                      ? 'bg-primary text-white'
+                      : 'bg-bg hover:bg-primary/5 text-text-secondary'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4" />CB
+                </button>
+                <button
+                  onClick={() => setPaymentMethod('cash')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-[12px] text-sm font-medium transition-all cursor-pointer ${
+                    paymentMethod === 'cash'
+                      ? 'bg-primary text-white'
+                      : 'bg-bg hover:bg-primary/5 text-text-secondary'
+                  }`}
+                >
+                  <Banknote className="w-4 h-4" />Espèces
+                </button>
+              </div>
+            </div>
 
             <Button className="w-full" loading={crediting} onClick={handleCredit}>
               <Wallet className="w-4 h-4 mr-1" />

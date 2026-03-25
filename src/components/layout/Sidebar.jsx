@@ -19,7 +19,6 @@ const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/bookings', icon: CalendarDays, label: 'Réservations' },
   { to: '/admin/members', icon: Users, label: 'Membres' },
-  { to: '/admin/recharge', icon: CreditCard, label: 'Recharger' },
   { to: '/admin/tournaments', icon: Trophy, label: 'Tournois' },
   { to: '/admin/events', icon: Calendar, label: 'Événements' },
   { to: '/admin/products', icon: Package, label: 'Articles' },

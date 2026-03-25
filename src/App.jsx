@@ -27,7 +27,6 @@ import Social from '@/pages/user/Social'
 import AdminDash from '@/pages/admin/AdminDash'
 import AdminBookings from '@/pages/admin/AdminBookings'
 import AdminMembers from '@/pages/admin/AdminMembers'
-import AdminRecharge from '@/pages/admin/AdminRecharge'
 import AdminTournaments from '@/pages/admin/AdminTournaments'
 import AdminEvents from '@/pages/admin/AdminEvents'
 import AdminProducts from '@/pages/admin/AdminProducts'
@@ -76,7 +75,6 @@ export default function App() {
             <Route path="/admin" element={<AdminDash />} />
             <Route path="/admin/bookings" element={<AdminBookings />} />
             <Route path="/admin/members" element={<AdminMembers />} />
-            <Route path="/admin/recharge" element={<AdminRecharge />} />
             <Route path="/admin/tournaments" element={<AdminTournaments />} />
             <Route path="/admin/events" element={<AdminEvents />} />
             <Route path="/admin/products" element={<AdminProducts />} />
