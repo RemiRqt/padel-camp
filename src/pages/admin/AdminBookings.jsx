@@ -12,7 +12,7 @@ import { formatTime, toDateString, monthTiny, dayNum } from '@/utils/formatDate'
 import { cancelBooking } from '@/services/bookingService'
 import toast from 'react-hot-toast'
 import {
-  CalendarDays, Search, Filter, Trash2, Eye, MapPin, Clock
+  CalendarDays, Search, Filter, Trash2, MapPin, Clock, Users, Euro
 } from 'lucide-react'
 
 const COURTS = [
@@ -27,11 +27,16 @@ const STATUSES = [
   { value: 'cancelled', label: 'Annulées' },
 ]
 
+const PAY_BADGE = {
+  paid: { color: 'success', label: 'Payé' },
+  external: { color: 'primary', label: 'CB/Espèces' },
+  pending: { color: 'warning', label: 'En attente' },
+}
+
 export default function AdminBookings() {
-  const sevenAgo = toDateString(new Date(Date.now() - 7 * 86400000))
   const today = toDateString(new Date())
 
-  const [from, setFrom] = useState(sevenAgo)
+  const [from, setFrom] = useState(today)
   const [to, setTo] = useState(today)
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -47,11 +52,11 @@ export default function AdminBookings() {
     setLoading(true)
     let q = supabase
       .from('bookings')
-      .select('*')
+      .select('*, booking_players(*)')
       .gte('date', from)
       .lte('date', to)
-      .order('date', { ascending: false })
-      .order('start_time', { ascending: false })
+      .order('date', { ascending: true })
+      .order('start_time', { ascending: true })
 
     if (courtFilter !== 'all') q = q.eq('court_id', courtFilter)
     if (statusFilter !== 'all') q = q.eq('status', statusFilter)
@@ -73,19 +78,9 @@ export default function AdminBookings() {
     return () => clearTimeout(t)
   }, [search])
 
-  const openDetail = async (b) => {
+  const openDetail = (b) => {
     setSelected(b)
-    try {
-      const { data, error } = await supabase
-        .from('booking_players')
-        .select('*')
-        .eq('booking_id', b.id)
-      if (error) throw error
-      setPlayers(data || [])
-    } catch (err) {
-      toast.error('Erreur chargement joueurs')
-      setPlayers([])
-    }
+    setPlayers(b.booking_players || [])
     setDetailOpen(true)
   }
 
@@ -105,6 +100,13 @@ export default function AdminBookings() {
   }
 
   const courtLabel = (id) => `Terrain ${id?.replace('terrain_', '') || '?'}`
+
+  const getPlayerStats = (bp) => {
+    if (!bp || bp.length === 0) return { filled: 0, paid: 0, total: 4 }
+    const filled = bp.filter((p) => p.player_name !== 'Place disponible').length
+    const paid = bp.filter((p) => p.payment_status === 'paid' || p.payment_status === 'external').length
+    return { filled, paid, total: bp.length }
+  }
 
   const exportCols = [
     { key: 'date', label: 'Date' },
@@ -183,34 +185,40 @@ export default function AdminBookings() {
           </Card>
         ) : (
           <div className="space-y-2">
-            {bookings.map((b) => (
-              <Card key={b.id} className="!p-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-[10px] bg-primary/10 flex flex-col items-center justify-center shrink-0">
-                    <span className="text-xs font-bold text-primary leading-none">{dayNum(b.date + 'T00:00')}</span>
-                    <span className="text-[9px] text-primary/70 uppercase">{monthTiny(b.date + 'T00:00')}</span>
+            {bookings.map((b) => {
+              const stats = getPlayerStats(b.booking_players)
+              const isCancelled = b.status === 'cancelled'
+              return (
+                <Card
+                  key={b.id}
+                  className={`!p-4 cursor-pointer hover:shadow-[0_4px_12px_rgba(11,39,120,0.15)] transition-shadow ${isCancelled ? 'opacity-50' : ''}`}
+                  onClick={() => openDetail(b)}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <span className="text-lg font-bold text-primary">
+                        {b.user_name?.charAt(0)?.toUpperCase() || '?'}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-text truncate">{b.user_name}</p>
+                        {isCancelled && <Badge color="danger">Annulée</Badge>}
+                      </div>
+                      <p className="text-xs text-text-secondary">
+                        {courtLabel(b.court_id)} · {formatTime(b.start_time)} – {formatTime(b.end_time)}
+                      </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-sm font-bold text-primary">{parseFloat(b.price).toFixed(0)}€</p>
+                      <p className={`text-[11px] font-medium ${stats.paid === stats.total ? 'text-success' : stats.paid > 0 ? 'text-warning' : 'text-text-tertiary'}`}>
+                        {stats.paid}/{stats.total} payés
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text truncate">{b.user_name}</p>
-                    <p className="text-xs text-text-secondary">
-                      {courtLabel(b.court_id)} · {formatTime(b.start_time)} – {formatTime(b.end_time)}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0 mr-1">
-                    <p className="text-sm font-bold text-primary">{parseFloat(b.price).toFixed(0)}€</p>
-                    <Badge color={b.status === 'confirmed' ? 'success' : 'danger'}>
-                      {b.status === 'confirmed' ? 'OK' : 'Annulée'}
-                    </Badge>
-                  </div>
-                  <button
-                    onClick={() => openDetail(b)}
-                    className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer"
-                  >
-                    <Eye className="w-4 h-4 text-text-secondary" />
-                  </button>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -240,7 +248,7 @@ export default function AdminBookings() {
                 <span className="text-sm font-semibold">{selected.user_name}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-sm text-text-secondary">Prix</span>
+                <span className="text-sm text-text-secondary">Prix total</span>
                 <span className="text-sm font-bold text-primary">{parseFloat(selected.price).toFixed(2)}€</span>
               </div>
             </div>
@@ -248,20 +256,67 @@ export default function AdminBookings() {
             {/* Players */}
             {players.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-text-secondary uppercase mb-2">Joueurs ({players.length})</p>
+                <p className="text-xs font-semibold text-text-secondary uppercase mb-2">
+                  Joueurs ({players.filter((p) => p.player_name !== 'Place disponible').length}/4)
+                </p>
                 <div className="space-y-1.5">
-                  {players.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-[10px] bg-bg">
-                      <div>
-                        <p className="text-sm font-medium">{p.player_name}</p>
-                        <p className="text-xs text-text-tertiary capitalize">{p.payment_method} · {p.user_id ? 'Membre' : 'Externe'}</p>
+                  {players.map((p) => {
+                    const isEmpty = p.player_name === 'Place disponible'
+                    const badge = PAY_BADGE[p.payment_status] || PAY_BADGE.pending
+                    return (
+                      <div key={p.id} className={`flex items-center justify-between py-2.5 px-3 rounded-[10px] ${isEmpty ? 'bg-bg/50 border border-dashed border-separator' : 'bg-bg'}`}>
+                        {isEmpty ? (
+                          <p className="text-sm text-text-tertiary">Place disponible</p>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                <span className="text-xs font-bold text-primary">
+                                  {p.player_name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">{p.player_name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <Badge color={p.user_id ? 'primary' : 'gray'}>
+                                    {p.user_id ? 'Membre' : 'Externe'}
+                                  </Badge>
+                                  <Badge color={badge.color}>{badge.label}</Badge>
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-sm font-semibold text-primary">{parseFloat(p.amount).toFixed(2)}€</span>
+                          </>
+                        )}
                       </div>
-                      <span className="text-sm font-semibold text-primary">{parseFloat(p.amount).toFixed(2)}€</span>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
+
+            {/* Payment summary */}
+            {players.length > 0 && (() => {
+              const paidAmount = players.reduce((s, p) => s + (p.payment_status === 'paid' || p.payment_status === 'external' ? parseFloat(p.amount) : 0), 0)
+              const totalAmount = parseFloat(selected.price)
+              const remaining = totalAmount - paidAmount
+              return (
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-[10px] bg-bg p-2.5">
+                    <p className="text-[10px] text-text-tertiary uppercase">Total</p>
+                    <p className="text-base font-bold text-primary">{totalAmount.toFixed(2)}€</p>
+                  </div>
+                  <div className="rounded-[10px] bg-success/10 p-2.5">
+                    <p className="text-[10px] text-text-tertiary uppercase">Payé</p>
+                    <p className="text-base font-bold text-success">{paidAmount.toFixed(2)}€</p>
+                  </div>
+                  <div className={`rounded-[10px] p-2.5 ${remaining > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
+                    <p className="text-[10px] text-text-tertiary uppercase">Reste</p>
+                    <p className={`text-base font-bold ${remaining > 0 ? 'text-warning' : 'text-success'}`}>{remaining.toFixed(2)}€</p>
+                  </div>
+                </div>
+              )
+            })()}
 
             {selected.status === 'confirmed' && (
               <Button variant="danger" className="w-full" loading={cancelling} onClick={handleAdminCancel}>

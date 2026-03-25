@@ -18,11 +18,11 @@ const userLinks = [
 const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/bookings', icon: CalendarDays, label: 'Réservations' },
+  { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente' },
   { to: '/admin/members', icon: Users, label: 'Membres' },
   { to: '/admin/tournaments', icon: Trophy, label: 'Tournois' },
   { to: '/admin/events', icon: Calendar, label: 'Événements' },
   { to: '/admin/products', icon: Package, label: 'Articles' },
-  { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente' },
   { to: '/admin/formulas', icon: CreditCard, label: 'Formules' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ]
