@@ -17,7 +17,6 @@ const userLinks = [
 
 const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/admin/bookings', icon: CalendarDays, label: 'Réservations' },
   { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente' },
   { to: '/admin/members', icon: Users, label: 'Membres' },
   { to: '/admin/calendar', icon: Calendar, label: 'Calendrier' },

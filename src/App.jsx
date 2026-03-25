@@ -25,7 +25,6 @@ import Social from '@/pages/user/Social'
 
 // Pages admin
 import AdminDash from '@/pages/admin/AdminDash'
-import AdminBookings from '@/pages/admin/AdminBookings'
 import AdminMembers from '@/pages/admin/AdminMembers'
 import AdminCalendar from '@/pages/admin/AdminCalendar'
 import AdminProducts from '@/pages/admin/AdminProducts'
@@ -72,7 +71,6 @@ export default function App() {
           {/* Routes admin */}
           <Route element={<AdminRoute><AppLayout /></AdminRoute>}>
             <Route path="/admin" element={<AdminDash />} />
-            <Route path="/admin/bookings" element={<AdminBookings />} />
             <Route path="/admin/members" element={<AdminMembers />} />
             <Route path="/admin/calendar" element={<AdminCalendar />} />
             <Route path="/admin/products" element={<AdminProducts />} />
