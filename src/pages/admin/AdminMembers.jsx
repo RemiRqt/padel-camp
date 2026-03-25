@@ -12,7 +12,7 @@ import ExportButtons from '@/components/ui/ExportButtons'
 import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import {
-  Search, UserPlus, Wallet, Gift, ChevronRight, Shield, Users, Filter,
+  Search, UserPlus, Wallet, Gift, ChevronRight, Shield, Users,
   CreditCard, Banknote
 } from 'lucide-react'
 
@@ -22,7 +22,7 @@ export default function AdminMembers() {
   const [filtered, setFiltered] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState('all')
+  const [roleFilter] = useState('all')
   const [formulas, setFormulas] = useState([])
 
   // Modals
@@ -206,19 +206,6 @@ export default function AdminMembers() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 rounded-[10px] bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-text-tertiary" />
-              <select
-                aria-label="Filtrer par rôle"
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="px-3 py-2.5 rounded-[10px] bg-bg text-sm border-0 focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="all">Tous les rôles</option>
-                <option value="user">Membres</option>
-                <option value="admin">Admins</option>
-              </select>
             </div>
           </div>
         </Card>

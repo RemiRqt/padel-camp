@@ -34,7 +34,7 @@ export default function Booking() {
 
   const days = useMemo(() => {
     const today = new Date()
-    return Array.from({ length: 7 }, (_, i) => addDays(today, i))
+    return Array.from({ length: 30 }, (_, i) => addDays(today, i))
   }, [])
 
   const slots = useMemo(() => generateSlots(config), [config])

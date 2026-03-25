@@ -1,30 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useClub } from '@/hooks/useClub'
+import { generateSlots } from '@/utils/slots'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
-import DateRangePicker from '@/components/ui/DateRangePicker'
-import ExportButtons from '@/components/ui/ExportButtons'
-import { exportExcel, exportPDF } from '@/utils/export'
-import { formatTime, toDateString, monthTiny, dayNum } from '@/utils/formatDate'
+import { formatTime, toDateString } from '@/utils/formatDate'
 import { cancelBooking } from '@/services/bookingService'
 import toast from 'react-hot-toast'
 import {
-  CalendarDays, Search, Filter, Trash2, MapPin, Clock, Users, Euro
+  CalendarDays, Trash2, MapPin, Clock, ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 const COURTS = [
-  { value: 'all', label: 'Tous les terrains' },
-  { value: 'terrain_1', label: 'Terrain 1' },
-  { value: 'terrain_2', label: 'Terrain 2' },
-  { value: 'terrain_3', label: 'Terrain 3' },
-]
-const STATUSES = [
-  { value: 'all', label: 'Tous' },
-  { value: 'confirmed', label: 'Confirmées' },
-  { value: 'cancelled', label: 'Annulées' },
+  { id: 'terrain_1', label: 'Terrain 1', short: 'T1' },
+  { id: 'terrain_2', label: 'Terrain 2', short: 'T2' },
+  { id: 'terrain_3', label: 'Terrain 3', short: 'T3' },
 ]
 
 const PAY_BADGE = {
@@ -34,49 +27,37 @@ const PAY_BADGE = {
 }
 
 export default function AdminBookings() {
-  const today = toDateString(new Date())
-
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
+  const [selectedDate, setSelectedDate] = useState(new Date())
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [courtFilter, setCourtFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
   const [detailOpen, setDetailOpen] = useState(false)
   const [selected, setSelected] = useState(null)
   const [players, setPlayers] = useState([])
   const [cancelling, setCancelling] = useState(false)
+  const { config } = useClub()
+
+  const dateStr = toDateString(selectedDate)
+  const slots = useMemo(() => generateSlots(config), [config])
 
   const fetchBookings = async () => {
     setLoading(true)
-    let q = supabase
+    const { data } = await supabase
       .from('bookings')
       .select('*, booking_players(*)')
-      .gte('date', from)
-      .lte('date', to)
-      .order('date', { ascending: true })
+      .eq('date', dateStr)
+      .eq('status', 'confirmed')
       .order('start_time', { ascending: true })
-
-    if (courtFilter !== 'all') q = q.eq('court_id', courtFilter)
-    if (statusFilter !== 'all') q = q.eq('status', statusFilter)
-
-    const { data } = await q
-    let results = data || []
-    if (search) {
-      const lq = search.toLowerCase()
-      results = results.filter((b) => b.user_name?.toLowerCase().includes(lq))
-    }
-    setBookings(results)
+    setBookings(data || [])
     setLoading(false)
   }
 
-  useEffect(() => { fetchBookings() }, [from, to, courtFilter, statusFilter])
-  useEffect(() => {
-    if (!search) { fetchBookings(); return }
-    const t = setTimeout(fetchBookings, 300)
-    return () => clearTimeout(t)
-  }, [search])
+  useEffect(() => { fetchBookings() }, [dateStr])
+
+  const getBookingFor = (courtId, startTime) => {
+    return bookings.find(
+      (b) => b.court_id === courtId && b.start_time.slice(0, 5) === startTime.slice(0, 5)
+    )
+  }
 
   const openDetail = (b) => {
     setSelected(b)
@@ -99,128 +80,151 @@ export default function AdminBookings() {
     }
   }
 
-  const courtLabel = (id) => `Terrain ${id?.replace('terrain_', '') || '?'}`
-
-  const getPlayerStats = (bp) => {
-    if (!bp || bp.length === 0) return { filled: 0, paid: 0, total: 4 }
-    const filled = bp.filter((p) => p.player_name !== 'Place disponible').length
-    const paid = bp.filter((p) => p.payment_status === 'paid' || p.payment_status === 'external').length
-    return { filled, paid, total: bp.length }
+  const changeDay = (offset) => {
+    const d = new Date(selectedDate)
+    d.setDate(d.getDate() + offset)
+    setSelectedDate(d)
   }
 
-  const exportCols = [
-    { key: 'date', label: 'Date' },
-    { key: 'court', label: 'Terrain' },
-    { key: 'time', label: 'Horaire' },
-    { key: 'user_name', label: 'Membre' },
-    { key: 'price', label: 'Prix' },
-    { key: 'status', label: 'Statut' },
-  ]
-  const exportRows = bookings.map((b) => ({
-    date: new Date(b.date + 'T00:00').toLocaleDateString('fr-FR'),
-    court: courtLabel(b.court_id),
-    time: `${formatTime(b.start_time)} – ${formatTime(b.end_time)}`,
-    user_name: b.user_name,
-    price: parseFloat(b.price).toFixed(2) + '€',
-    status: b.status === 'confirmed' ? 'Confirmée' : 'Annulée',
-  }))
+  const dayLabel = selectedDate.toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+
+  const isToday = toDateString(selectedDate) === toDateString(new Date())
 
   return (
     <PageWrapper wide>
-      <div className="space-y-5">
+      <div className="space-y-4">
+        {/* Header with day selector */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-primary" />
             <h1 className="text-2xl font-bold text-text">Réservations</h1>
-            <Badge color="primary">{bookings.length}</Badge>
           </div>
+
           <div className="flex items-center gap-2">
-            <DateRangePicker from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t) }} />
-            <ExportButtons
-              onExcel={() => exportExcel(exportRows, exportCols, `reservations_${from}_${to}`)}
-              onPDF={() => exportPDF(exportRows, exportCols, `reservations_${from}_${to}`, 'Padel Camp — Réservations')}
+            <button
+              onClick={() => changeDay(-1)}
+              className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer"
+            >
+              <ChevronLeft className="w-5 h-5 text-text-secondary" />
+            </button>
+
+            <button
+              onClick={() => setSelectedDate(new Date())}
+              className={`px-4 py-2 rounded-[10px] text-sm font-medium transition-all cursor-pointer ${
+                isToday ? 'bg-primary text-white' : 'bg-bg hover:bg-primary/5 text-text'
+              }`}
+            >
+              Aujourd'hui
+            </button>
+
+            <input
+              type="date"
+              value={dateStr}
+              onChange={(e) => setSelectedDate(new Date(e.target.value + 'T00:00'))}
+              className="px-3 py-2 rounded-[10px] bg-bg text-sm font-medium text-text border-0 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
             />
+
+            <button
+              onClick={() => changeDay(1)}
+              className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer"
+            >
+              <ChevronRight className="w-5 h-5 text-text-secondary" />
+            </button>
           </div>
         </div>
 
-        <Card className="!p-3">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
-              <input
-                type="text"
-                placeholder="Rechercher par nom..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-[10px] bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <select
-              aria-label="Filtrer par terrain"
-              value={courtFilter}
-              onChange={(e) => setCourtFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-[10px] bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {COURTS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
-            <select
-              aria-label="Filtrer par statut"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2.5 rounded-[10px] bg-bg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
+        {/* Day label */}
+        <p className="text-sm text-text-secondary capitalize">{dayLabel}</p>
+
+        {/* Grid: Horaires x 3 Terrains */}
+        <Card className="!p-0 overflow-hidden">
+          {/* Header row */}
+          <div className="grid grid-cols-[80px_1fr_1fr_1fr] lg:grid-cols-[100px_1fr_1fr_1fr] border-b border-separator bg-bg/50">
+            <div className="p-3 text-xs font-semibold text-text-tertiary uppercase text-center">Horaire</div>
+            {COURTS.map((court) => (
+              <div key={court.id} className="p-3 text-center text-xs font-semibold text-text-secondary uppercase border-l border-separator">
+                <span className="hidden sm:inline">{court.label}</span>
+                <span className="sm:hidden">{court.short}</span>
+              </div>
+            ))}
           </div>
+
+          {/* Slot rows */}
+          {loading ? (
+            Array.from({ length: 6 }, (_, i) => (
+              <div key={i} className="grid grid-cols-[80px_1fr_1fr_1fr] lg:grid-cols-[100px_1fr_1fr_1fr] border-b border-separator last:border-0">
+                {[0, 1, 2, 3].map((j) => (
+                  <div key={j} className="p-2"><div className="h-14 rounded-[10px] bg-bg animate-pulse" /></div>
+                ))}
+              </div>
+            ))
+          ) : (
+            slots.map((slot) => (
+              <div key={slot.start} className="grid grid-cols-[80px_1fr_1fr_1fr] lg:grid-cols-[100px_1fr_1fr_1fr] border-b border-separator last:border-0">
+                {/* Time */}
+                <div className="p-2 flex flex-col items-center justify-center bg-bg/30">
+                  <span className="text-xs font-semibold text-text">{formatTime(slot.start)}</span>
+                  <span className="text-[10px] text-text-tertiary">{formatTime(slot.end)}</span>
+                </div>
+
+                {/* 3 courts */}
+                {COURTS.map((court) => {
+                  const booking = getBookingFor(court.id, slot.start)
+                  if (!booking) {
+                    return (
+                      <div key={court.id} className="p-1.5 border-l border-separator">
+                        <div className="h-full min-h-[56px] rounded-[10px] bg-green-50/50 flex items-center justify-center">
+                          <span className="text-xs text-green-400">Libre</span>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  const bp = booking.booking_players || []
+                  const filled = bp.filter((p) => p.player_name !== 'Place disponible').length
+                  const paid = bp.filter((p) => p.payment_status === 'paid' || p.payment_status === 'external').length
+
+                  return (
+                    <div key={court.id} className="p-1.5 border-l border-separator">
+                      <button
+                        onClick={() => openDetail(booking)}
+                        className="w-full h-full min-h-[56px] rounded-[10px] bg-primary/5 hover:bg-primary/10 transition-colors p-2 text-left cursor-pointer"
+                      >
+                        <p className="text-xs font-semibold text-text truncate">{booking.user_name}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[10px] text-text-secondary">{filled}/4 joueurs</span>
+                          <span className={`text-[10px] font-medium ${
+                            paid === bp.length ? 'text-success' : paid > 0 ? 'text-warning' : 'text-text-tertiary'
+                          }`}>
+                            {paid}/{bp.length} payés
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-primary mt-0.5">{parseFloat(booking.price).toFixed(0)}€</p>
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            ))
+          )}
         </Card>
 
-        {loading ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4].map((i) => <div key={i} className="h-20 rounded-[16px] bg-white animate-pulse" />)}
+        {/* Legend */}
+        <div className="flex items-center gap-4 px-1">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-green-50 border border-green-200" />
+            <span className="text-xs text-text-secondary">Libre</span>
           </div>
-        ) : bookings.length === 0 ? (
-          <Card className="text-center !py-8">
-            <CalendarDays className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-            <p className="text-sm text-text-tertiary">Aucune réservation trouvée</p>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-            {bookings.map((b) => {
-              const stats = getPlayerStats(b.booking_players)
-              const isCancelled = b.status === 'cancelled'
-              return (
-                <Card
-                  key={b.id}
-                  className={`!p-4 cursor-pointer hover:shadow-[0_4px_12px_rgba(11,39,120,0.15)] transition-shadow ${isCancelled ? 'opacity-50' : ''}`}
-                  onClick={() => openDetail(b)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <span className="text-lg font-bold text-primary">
-                        {b.user_name?.charAt(0)?.toUpperCase() || '?'}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-text truncate">{b.user_name}</p>
-                        {isCancelled && <Badge color="danger">Annulée</Badge>}
-                      </div>
-                      <p className="text-xs text-text-secondary">
-                        {courtLabel(b.court_id)} · {formatTime(b.start_time)} – {formatTime(b.end_time)}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-bold text-primary">{parseFloat(b.price).toFixed(0)}€</p>
-                      <p className={`text-[11px] font-medium ${stats.paid === stats.total ? 'text-success' : stats.paid > 0 ? 'text-warning' : 'text-text-tertiary'}`}>
-                        {stats.paid}/{stats.total} payés
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              )
-            })}
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-primary/10 border border-primary/20" />
+            <span className="text-xs text-text-secondary">Réservé</span>
           </div>
-        )}
+          <span className="text-xs text-text-tertiary">
+            {bookings.length} réservation{bookings.length !== 1 ? 's' : ''} ce jour
+          </span>
+        </div>
       </div>
 
       {/* Detail modal */}
@@ -234,7 +238,9 @@ export default function AdminBookings() {
             <div className="rounded-[14px] bg-bg p-4 space-y-2.5">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">{courtLabel(selected.court_id)}</span>
+                <span className="text-sm font-medium">
+                  {COURTS.find((c) => c.id === selected.court_id)?.label || selected.court_id}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-primary" />

@@ -345,10 +345,9 @@ export default function AdminDash() {
               { to: '/admin/bookings', icon: CalendarDays, label: 'Réservations', color: 'bg-primary/5 text-primary' },
               { to: '/admin/members', icon: Wallet, label: 'Créditer', color: 'bg-success/5 text-success' },
               { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente', color: 'bg-warning/5 text-warning' },
-              { to: '/admin/tournaments', icon: Trophy, label: 'Tournois', color: 'bg-primary/5 text-primary' },
+              { to: '/admin/calendar', icon: Trophy, label: 'Calendrier', color: 'bg-primary/5 text-primary' },
               { to: '/admin/products', icon: Package, label: 'Articles', color: 'bg-lime/10 text-primary' },
               { to: '/admin/formulas', icon: CreditCard, label: 'Formules', color: 'bg-success/5 text-success' },
-              { to: '/admin/events', icon: CalendarDays, label: 'Événements', color: 'bg-lime/10 text-primary' },
               { to: '/admin/settings', icon: Settings, label: 'Paramètres', color: 'bg-bg text-text-secondary' },
             ].map(({ to, icon: Icon, label, color }) => (
               <Link key={to} to={to}>
