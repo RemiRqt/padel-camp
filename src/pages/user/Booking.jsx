@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useClub } from '@/hooks/useClub'
 import { useBookings } from '@/hooks/useBookings'
+import { supabase } from '@/lib/supabase'
 import { generateSlots, isSlotBooked, isSlotPast } from '@/utils/slots'
 import { getSlotPrice, findPricingRule } from '@/utils/calculatePrice'
 import { formatTime, toDateString, addDays, getDayIndex, DAYS_SHORT, isSameDay, isToday } from '@/utils/formatDate'
@@ -12,7 +13,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import toast from 'react-hot-toast'
-import { Check } from 'lucide-react'
+import { Check, Trophy, Star } from 'lucide-react'
 
 const COURTS = [
   { id: 'terrain_1', name: 'Terrain 1', short: 'T1' },
@@ -32,6 +33,33 @@ export default function Booking() {
 
   const navigate = useNavigate()
 
+  // Fetch tournaments & events for the selected date to block courts
+  const [dayEvents, setDayEvents] = useState([])
+  useEffect(() => {
+    const dateStr = toDateString(selectedDate)
+    async function fetchDayEvents() {
+      const [tRes, eRes] = await Promise.all([
+        supabase.from('tournaments').select('name, start_time, end_time').eq('date', dateStr).not('status', 'eq', 'cancelled'),
+        supabase.from('events').select('name, start_time, end_time').eq('date', dateStr),
+      ])
+      setDayEvents([
+        ...(tRes.data || []).map((t) => ({ ...t, type: 'tournament' })),
+        ...(eRes.data || []).map((e) => ({ ...e, type: 'event' })),
+      ])
+    }
+    fetchDayEvents()
+  }, [selectedDate])
+
+  // Check if a slot is blocked by a tournament/event
+  const getBlockingEvent = (slotStart, slotEnd) => {
+    return dayEvents.find((ev) => {
+      if (!ev.start_time || !ev.end_time) return true // full day event
+      const evStart = ev.start_time.slice(0, 5)
+      const evEnd = ev.end_time.slice(0, 5)
+      return slotStart < evEnd && slotEnd > evStart
+    })
+  }
+
   const days = useMemo(() => {
     const today = new Date()
     return Array.from({ length: 30 }, (_, i) => addDays(today, i))
@@ -45,6 +73,7 @@ export default function Booking() {
   const handleSlotClick = (courtId, slot) => {
     if (isSlotBooked(bookings, courtId, slot.start)) return
     if (isSlotPast(selectedDate, slot.start)) return
+    if (getBlockingEvent(slot.start, slot.end)) return
     const price = getSlotPrice(pricingRules, selectedDate, slot.start)
     setSelectedSlot({ courtId, start: slot.start, end: slot.end, price })
     setPayChoice('my_part')
@@ -172,7 +201,8 @@ export default function Booking() {
                       {/* 3 courts */}
                       {COURTS.map((court) => {
                         const booked = isSlotBooked(bookings, court.id, slot.start)
-                        const disabled = booked || past
+                        const blocking = getBlockingEvent(slot.start, slot.end)
+                        const disabled = booked || past || !!blocking
 
                         return (
                           <div key={court.id} className="p-1">
@@ -180,14 +210,22 @@ export default function Booking() {
                               onClick={() => !disabled && handleSlotClick(court.id, slot)}
                               disabled={disabled}
                               className={`w-full h-11 rounded-lg flex items-center justify-center transition-all text-xs font-semibold ${
-                                booked
-                                  ? 'bg-red-50 text-red-400 cursor-not-allowed'
-                                  : past
-                                    ? 'bg-bg text-text-tertiary cursor-not-allowed'
-                                    : 'bg-green-50 text-green-700 hover:bg-green-100 cursor-pointer active:scale-95'
+                                blocking
+                                  ? 'bg-primary/10 text-primary cursor-not-allowed'
+                                  : booked
+                                    ? 'bg-red-50 text-red-400 cursor-not-allowed'
+                                    : past
+                                      ? 'bg-bg text-text-tertiary cursor-not-allowed'
+                                      : 'bg-green-50 text-green-700 hover:bg-green-100 cursor-pointer active:scale-95'
                               }`}
+                              title={blocking ? blocking.name : ''}
                             >
-                              {booked ? 'Complet' : past ? '—' : `${price.toFixed(0)}€`}
+                              {blocking ? (
+                                <span className="flex items-center gap-0.5 truncate px-1">
+                                  {blocking.type === 'tournament' ? <Trophy className="w-3 h-3 shrink-0" /> : <Star className="w-3 h-3 shrink-0" />}
+                                  <span className="truncate">{blocking.name}</span>
+                                </span>
+                              ) : booked ? 'Complet' : past ? '—' : `${price.toFixed(0)}€`}
                             </button>
                           </div>
                         )
@@ -207,6 +245,10 @@ export default function Booking() {
               <div className="flex items-center gap-1.5">
                 <div className="w-3 h-3 rounded bg-red-50 border border-red-200" />
                 <span className="text-xs text-text-secondary">Complet</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded bg-primary/10 border border-primary/20" />
+                <span className="text-xs text-text-secondary">Tournoi / Événement</span>
               </div>
               <span className="text-xs text-text-tertiary">Prix = créneau 1h30</span>
             </div>

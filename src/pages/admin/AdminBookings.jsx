@@ -11,7 +11,7 @@ import { formatTime, toDateString } from '@/utils/formatDate'
 import { cancelBooking } from '@/services/bookingService'
 import toast from 'react-hot-toast'
 import {
-  CalendarDays, Trash2, MapPin, Clock, ChevronLeft, ChevronRight
+  CalendarDays, Trash2, MapPin, Clock, ChevronLeft, ChevronRight, Trophy, Star
 } from 'lucide-react'
 
 const COURTS = [
@@ -38,6 +38,30 @@ export default function AdminBookings() {
 
   const dateStr = toDateString(selectedDate)
   const slots = useMemo(() => generateSlots(config), [config])
+  const [dayEvents, setDayEvents] = useState([])
+
+  useEffect(() => {
+    async function fetchDayEvents() {
+      const [tRes, eRes] = await Promise.all([
+        supabase.from('tournaments').select('name, start_time, end_time').eq('date', dateStr).not('status', 'eq', 'cancelled'),
+        supabase.from('events').select('name, start_time, end_time').eq('date', dateStr),
+      ])
+      setDayEvents([
+        ...(tRes.data || []).map((t) => ({ ...t, type: 'tournament' })),
+        ...(eRes.data || []).map((e) => ({ ...e, type: 'event' })),
+      ])
+    }
+    fetchDayEvents()
+  }, [dateStr])
+
+  const getBlockingEvent = (slotStart, slotEnd) => {
+    return dayEvents.find((ev) => {
+      if (!ev.start_time || !ev.end_time) return true
+      const evStart = ev.start_time.slice(0, 5)
+      const evEnd = ev.end_time.slice(0, 5)
+      return slotStart < evEnd && slotEnd > evStart
+    })
+  }
 
   const fetchBookings = async () => {
     setLoading(true)
@@ -172,6 +196,19 @@ export default function AdminBookings() {
                 {/* 3 courts */}
                 {COURTS.map((court) => {
                   const booking = getBookingFor(court.id, slot.start)
+                  const blocking = getBlockingEvent(slot.start, slot.end)
+
+                  if (blocking && !booking) {
+                    return (
+                      <div key={court.id} className="p-1.5 border-l border-separator">
+                        <div className="h-full min-h-[56px] rounded-[10px] bg-primary/10 flex items-center justify-center gap-1 px-2">
+                          {blocking.type === 'tournament' ? <Trophy className="w-3.5 h-3.5 text-primary shrink-0" /> : <Star className="w-3.5 h-3.5 text-lime-dark shrink-0" />}
+                          <span className="text-[10px] font-medium text-primary truncate">{blocking.name}</span>
+                        </div>
+                      </div>
+                    )
+                  }
+
                   if (!booking) {
                     return (
                       <div key={court.id} className="p-1.5 border-l border-separator">
@@ -218,8 +255,12 @@ export default function AdminBookings() {
             <span className="text-xs text-text-secondary">Libre</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-primary/10 border border-primary/20" />
+            <div className="w-3 h-3 rounded bg-primary/5 border border-primary/10" />
             <span className="text-xs text-text-secondary">Réservé</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-primary/10 border border-primary/20" />
+            <span className="text-xs text-text-secondary">Tournoi / Événement</span>
           </div>
           <span className="text-xs text-text-tertiary">
             {bookings.length} réservation{bookings.length !== 1 ? 's' : ''} ce jour
