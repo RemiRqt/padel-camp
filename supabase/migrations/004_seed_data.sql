@@ -119,12 +119,21 @@ BEGIN
           );
 
           -- Créer 4 joueurs pour la session
-          INSERT INTO booking_players (booking_id, user_id, player_name, parts, payment_method, amount, payment_status)
+          -- Joueur 1 (réservant) = toujours accepted
+          -- Joueur 2 (membre invité) = accepted pour les sessions passées, mix pour les futures
+          INSERT INTO booking_players (booking_id, user_id, player_name, parts, payment_method, amount, payment_status, invitation_status)
           VALUES
-            (booking_id, members[member_idx], member_names[member_idx], 1, 'balance', prices[slot_idx] / 4.0, CASE WHEN random() < 0.8 THEN 'paid' ELSE 'pending' END),
-            (booking_id, members[((member_idx % 10) + 1)], member_names[((member_idx % 10) + 1)], 1, 'balance', prices[slot_idx] / 4.0, CASE WHEN random() < 0.6 THEN 'paid' ELSE 'pending' END),
-            (booking_id, NULL, 'Place disponible', 1, 'balance', prices[slot_idx] / 4.0, 'pending'),
-            (booking_id, NULL, 'Place disponible', 1, 'balance', prices[slot_idx] / 4.0, 'pending');
+            (booking_id, members[member_idx], member_names[member_idx], 1, 'balance', prices[slot_idx] / 4.0,
+              CASE WHEN random() < 0.8 THEN 'paid' ELSE 'pending' END, 'accepted'),
+            (booking_id, members[((member_idx % 10) + 1)], member_names[((member_idx % 10) + 1)], 1, 'balance', prices[slot_idx] / 4.0,
+              CASE WHEN d < '2026-03-25'::DATE THEN
+                CASE WHEN random() < 0.6 THEN 'paid' ELSE 'pending' END
+              ELSE 'pending' END,
+              CASE WHEN d < '2026-03-25'::DATE THEN 'accepted'
+                   WHEN random() < 0.5 THEN 'accepted'
+                   ELSE 'pending' END),
+            (booking_id, NULL, 'Place disponible', 1, 'balance', prices[slot_idx] / 4.0, 'pending', 'accepted'),
+            (booking_id, NULL, 'Place disponible', 1, 'balance', prices[slot_idx] / 4.0, 'pending', 'accepted');
         END IF;
       END LOOP;
     END LOOP;

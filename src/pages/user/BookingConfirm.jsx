@@ -25,6 +25,12 @@ const PAY_BADGE = {
   pending: { color: 'warning', label: 'En attente' },
 }
 
+const INVITE_BADGE = {
+  pending: { color: 'warning', label: 'Invitation envoyée' },
+  accepted: { color: 'success', label: 'Acceptée' },
+  declined: { color: 'danger', label: 'Refusée' },
+}
+
 const courtLabel = (courtId) => `Terrain ${courtId?.replace('terrain_', '') || '?'}`
 
 export default function BookingConfirm() {
@@ -305,6 +311,9 @@ export default function BookingConfirm() {
               const badge = PAY_BADGE[player.payment_status] || PAY_BADGE.pending
               const isPending = player.payment_status === 'pending'
               const isMember = !!player.user_id
+              const isMe = player.user_id === user?.id
+              const inviteBadge = INVITE_BADGE[player.invitation_status] || null
+              const isInvitePending = player.invitation_status === 'pending'
 
               // Empty slot
               if (isEmpty) {
@@ -345,24 +354,27 @@ export default function BookingConfirm() {
                         <p className="text-sm font-medium text-text truncate">{player.player_name}</p>
                         {isPlayer1 && <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium">Réservant</span>}
                       </div>
-                      <div className="flex items-center gap-1.5 mt-0.5">
+                      <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <Badge color={isMember ? 'primary' : 'gray'}>
                           {isMember ? 'Membre' : 'Externe'}
                         </Badge>
-                        <Badge color={badge.color}>{badge.label}</Badge>
+                        {isMember && !isPlayer1 && inviteBadge && (
+                          <Badge color={inviteBadge.color}>{inviteBadge.label}</Badge>
+                        )}
+                        {(!isInvitePending || isPlayer1) && (
+                          <Badge color={badge.color}>{badge.label}</Badge>
+                        )}
                       </div>
                     </div>
                     <p className="text-sm font-bold text-primary">{parseFloat(player.amount).toFixed(2)}€</p>
                   </div>
 
-                  {/* Payment actions for pending players */}
-                  {isPending && !isPaid && isOwner && (
+                  {/* Payment actions — only for yourself */}
+                  {isPending && !isPaid && isMe && !isInvitePending && (
                     <div className="flex gap-2 mt-2.5 pt-2.5 border-t border-separator/50">
-                      {isMember && (
-                        <Button size="sm" className="flex-1" onClick={() => handlePayBalance(player)} loading={submitting}>
-                          <Wallet className="w-3.5 h-3.5 mr-1" />Solde
-                        </Button>
-                      )}
+                      <Button size="sm" className="flex-1" onClick={() => handlePayBalance(player)} loading={submitting}>
+                        <Wallet className="w-3.5 h-3.5 mr-1" />Solde
+                      </Button>
                       <Button size="sm" variant="ghost" className="flex-1" onClick={() => handlePayExternal(player, 'cb')} loading={submitting}>
                         <CreditCard className="w-3.5 h-3.5 mr-1" />CB
                       </Button>
@@ -372,8 +384,8 @@ export default function BookingConfirm() {
                     </div>
                   )}
 
-                  {/* Clear slot (not player 1, not paid) */}
-                  {!isPlayer1 && isPending && !isPaid && isOwner && (
+                  {/* Clear slot — owner can remove invited players, or self-remove */}
+                  {!isPlayer1 && isPending && !isPaid && (isOwner || isMe) && (
                     <button
                       onClick={() => handleClearSlot(player)}
                       className="mt-2 text-xs text-danger hover:underline cursor-pointer"

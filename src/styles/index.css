@@ -25,13 +25,29 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar minimal */
+/* Scrollbar — fine sur mobile, plus large sur desktop */
 ::-webkit-scrollbar {
   width: 4px;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--color-text-tertiary);
   border-radius: 2px;
+}
+@media (min-width: 1024px) {
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bg);
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-text-tertiary);
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-secondary);
+  }
 }
 
 /* Modal animation */

@@ -128,6 +128,9 @@ export async function assignPlayerToSlot({ slotId, bookingId, userId, playerName
   const share = partPrice(booking.price)
   const amount = Math.round(share * parts * 100) / 100
 
+  // Members get a pending invitation, externals are accepted directly
+  const invitationStatus = userId ? 'pending' : 'accepted'
+
   const { data, error } = await supabase
     .from('booking_players')
     .update({
@@ -137,6 +140,7 @@ export async function assignPlayerToSlot({ slotId, bookingId, userId, playerName
       payment_method: paymentMethod || (userId ? 'balance' : 'cb'),
       amount,
       payment_status: 'pending',
+      invitation_status: invitationStatus,
     })
     .eq('id', slotId)
     .select()
@@ -235,4 +239,57 @@ export async function searchMembers(query) {
     .limit(5)
   if (error) throw error
   return data || []
+}
+
+/**
+ * Get pending invitations for a user (sessions where they are invited but haven't accepted yet)
+ */
+export async function getMyInvitations(userId) {
+  const { data, error } = await supabase
+    .from('booking_players')
+    .select('*, booking:bookings(*)')
+    .eq('user_id', userId)
+    .eq('invitation_status', 'pending')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  // Only return invitations for confirmed upcoming bookings
+  const today = new Date().toISOString().split('T')[0]
+  return (data || []).filter(
+    (p) => p.booking && p.booking.status === 'confirmed' && p.booking.date >= today
+  )
+}
+
+/**
+ * Accept an invitation and choose payment method
+ */
+export async function acceptInvitation({ playerId, paymentMethod }) {
+  const { data, error } = await supabase
+    .from('booking_players')
+    .update({
+      invitation_status: 'accepted',
+      payment_method: paymentMethod,
+    })
+    .eq('id', playerId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Decline an invitation — resets the slot to "Place disponible"
+ */
+export async function declineInvitation(playerId) {
+  const { error } = await supabase
+    .from('booking_players')
+    .update({
+      user_id: null,
+      player_name: 'Place disponible',
+      parts: 1,
+      payment_method: 'balance',
+      payment_status: 'pending',
+      invitation_status: 'accepted', // reset slot is "accepted" (empty)
+    })
+    .eq('id', playerId)
+  if (error) throw error
 }
