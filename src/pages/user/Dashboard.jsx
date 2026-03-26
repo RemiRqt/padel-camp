@@ -65,8 +65,8 @@ export default function Dashboard() {
   const handleAcceptInvitation = async (invitation, paymentMethod) => {
     setSubmitting(true)
     try {
-      await acceptInvitation({ playerId: invitation.id, paymentMethod })
-      toast.success('Invitation acceptée !')
+      await acceptInvitation({ playerId: invitation.id, paymentMethod, userId: user.id })
+      toast.success(paymentMethod === 'balance' ? 'Invitation acceptée et payée !' : 'Invitation acceptée !')
       setRespondingTo(null)
       await fetchInvitations()
     } catch (err) {

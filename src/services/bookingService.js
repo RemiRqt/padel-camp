@@ -260,15 +260,43 @@ export async function getMyInvitations(userId) {
 }
 
 /**
- * Accept an invitation and choose payment method
+ * Accept an invitation and choose payment method.
+ * If payment method is 'balance', automatically debit the user's account.
  */
-export async function acceptInvitation({ playerId, paymentMethod }) {
+export async function acceptInvitation({ playerId, paymentMethod, userId }) {
+  // Get player info to know the amount and booking
+  const { data: player, error: pErr } = await supabase
+    .from('booking_players')
+    .select('*, booking:bookings(*)')
+    .eq('id', playerId)
+    .single()
+  if (pErr) throw pErr
+
+  const amount = parseFloat(player.amount)
+
+  // Update invitation status and payment method
+  const updateData = {
+    invitation_status: 'accepted',
+    payment_method: paymentMethod,
+  }
+
+  // If paying by balance, debit immediately
+  if (paymentMethod === 'balance' && userId) {
+    const { error: debitErr } = await supabase.rpc('debit_user', {
+      p_user_id: userId,
+      p_amount: amount,
+      p_description: `Session ${player.booking?.court_id?.replace('_', ' ')} — ${player.booking?.start_time?.slice(0, 5)}`,
+      p_performed_by: userId,
+      p_type: 'debit_session',
+      p_booking_id: player.booking_id,
+    })
+    if (debitErr) throw debitErr
+    updateData.payment_status = 'paid'
+  }
+
   const { data, error } = await supabase
     .from('booking_players')
-    .update({
-      invitation_status: 'accepted',
-      payment_method: paymentMethod,
-    })
+    .update(updateData)
     .eq('id', playerId)
     .select()
     .single()

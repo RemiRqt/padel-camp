@@ -619,7 +619,9 @@ export default function AdminPOS() {
         {selectedBooking && (() => {
           const total = parseFloat(selectedBooking.price)
           const defaultShare = Math.round((total / 4) * 100) / 100
-          const realPlayers = sessionPlayers.filter((p) => p.player_name !== 'Place disponible')
+          const allPlayers = sessionPlayers
+          const realPlayers = allPlayers.filter((p) => p.player_name !== 'Place disponible')
+          const pendingInvites = realPlayers.filter((p) => p.invitation_status === 'pending')
           const paid = realPlayers.reduce((s, p) => s + (p.payment_status !== 'pending' ? parseFloat(p.amount) : 0), 0)
           const remaining = total - paid
           const isSessionPaid = paid >= total
@@ -668,24 +670,47 @@ export default function AdminPOS() {
                     const isPending = p.payment_status === 'pending'
                     const isMember = !!p.user_id
                     const isReservant = idx === 0
+                    const isInvitePending = p.invitation_status === 'pending'
 
                     return (
-                      <div key={p.id} className="rounded-[10px] bg-bg p-3 space-y-2">
+                      <div key={p.id} className={`rounded-[10px] p-3 space-y-2 ${isInvitePending ? 'bg-warning/5 border border-warning/20' : 'bg-bg'}`}>
                         <div className="flex items-center gap-2">
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                             <span className="text-xs font-bold text-primary">{p.player_name.charAt(0).toUpperCase()}</span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 flex-wrap">
                               <p className="text-sm font-medium truncate">{p.player_name}</p>
                               {isReservant && <span className="text-[8px] bg-primary/10 text-primary px-1 py-0.5 rounded">Rés.</span>}
+                              {isInvitePending && <span className="text-[8px] bg-warning/20 text-warning px-1 py-0.5 rounded">Invitation en attente</span>}
                             </div>
                             <p className="text-[10px] text-text-tertiary">{isMember ? 'Membre' : 'Externe'}</p>
                           </div>
-                          <Badge color={badge.color}>{badge.label}</Badge>
+                          {!isInvitePending && <Badge color={badge.color}>{badge.label}</Badge>}
                         </div>
 
-                        {isPending && !isSessionPaid && (
+                        {/* Admin can force-accept or remove pending invitations */}
+                        {isInvitePending && (
+                          <div className="flex gap-1.5">
+                            <Button size="sm" className="flex-1" loading={submitting} onClick={async () => {
+                              setSubmitting(true)
+                              try {
+                                await supabase.from('booking_players').update({ invitation_status: 'accepted' }).eq('id', p.id)
+                                toast.success('Invitation validée')
+                                await refreshSession()
+                              } catch (err) { toast.error(err.message) }
+                              finally { setSubmitting(false) }
+                            }}>
+                              Valider l'invitation
+                            </Button>
+                            <Button size="sm" variant="danger" className="flex-1" loading={submitting} onClick={() => handleRemovePlayer(p)}>
+                              Supprimer
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* Payment actions — only for accepted, pending payment */}
+                        {!isInvitePending && isPending && !isSessionPaid && (
                           <>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-text-secondary">Montant :</span>
