@@ -12,6 +12,7 @@ import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import ErrorState from '@/components/ui/ErrorState'
 import toast from 'react-hot-toast'
 import { Check, Trophy, Star } from 'lucide-react'
 
@@ -25,7 +26,7 @@ export default function Booking() {
   const { user, profile } = useAuth()
   const { config, pricingRules, loading: clubLoading } = useClub()
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const { bookings, loading: bookingsLoading } = useBookings(selectedDate)
+  const { bookings, loading: bookingsLoading, error: bookingsError, refetch } = useBookings(selectedDate)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -177,7 +178,9 @@ export default function Booking() {
               </div>
 
               {/* Rows */}
-              {bookingsLoading ? (
+              {bookingsError ? (
+                <div className="py-6"><ErrorState message="Impossible de charger les créneaux" onRetry={refetch} /></div>
+              ) : bookingsLoading ? (
                 Array.from({ length: 6 }, (_, i) => (
                   <div key={i} className="grid grid-cols-[56px_1fr_1fr_1fr] border-b border-separator last:border-0">
                     {[0, 1, 2, 3].map((j) => (
@@ -229,7 +232,7 @@ export default function Booking() {
                                       : blocking.name}
                                   </span>
                                 </span>
-                              ) : booked ? 'Complet' : past ? '—' : `${price.toFixed(0)}€`}
+                              ) : booked ? 'Complet' : past ? '—' : price != null ? `${price.toFixed(0)}€` : '—'}
                             </button>
                           </div>
                         )

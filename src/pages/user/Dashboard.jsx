@@ -4,6 +4,9 @@ import { useAuth } from '@/context/AuthContext'
 import { useUserBookings } from '@/hooks/useBookings'
 import { supabase } from '@/lib/supabase'
 import { getMyInvitations, acceptInvitation, declineInvitation } from '@/services/bookingService'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import ErrorState from '@/components/ui/ErrorState'
+import useConfirm from '@/hooks/useConfirm'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -13,7 +16,7 @@ import toast from 'react-hot-toast'
 import {
   Wallet, CalendarDays, Trophy, Clock, ArrowUpRight,
   ArrowDownRight, Gift, CreditCard, ChevronRight, ChevronDown, ChevronUp,
-  CheckCircle, Calendar, UserPlus, Banknote, X, Check, MapPin
+  CheckCircle, Calendar, UserPlus, Banknote, X, Check, AlertTriangle
 } from 'lucide-react'
 import { formatDateShort, formatTime, toDateString, monthTiny, dayNum, formatDateFull } from '@/utils/formatDate'
 
@@ -32,7 +35,9 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState([])
   const [txTotal, setTxTotal] = useState(0)
   const [nextTournament, setNextTournament] = useState(null)
+  const [pendingConfirmations, setPendingConfirmations] = useState([])
   const [loadingTx, setLoadingTx] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [expanded, setExpanded] = useState([])
   const [showAllTx, setShowAllTx] = useState(false)
 
@@ -45,6 +50,8 @@ export default function Dashboard() {
   const [invitationsLoading, setInvitationsLoading] = useState(true)
   const [respondingTo, setRespondingTo] = useState(null) // invitation being responded to
   const [submitting, setSubmitting] = useState(false)
+
+  const { confirmProps, askConfirm } = useConfirm()
 
   const balance = parseFloat(profile?.balance || 0)
   const bonus = parseFloat(profile?.balance_bonus || 0)
@@ -76,30 +83,35 @@ export default function Dashboard() {
     }
   }
 
-  const handleDeclineInvitation = async (invitation) => {
-    if (!confirm('Refuser cette invitation ?')) return
-    setSubmitting(true)
-    try {
-      await declineInvitation(invitation.id)
-      toast.success('Invitation refusée')
-      setRespondingTo(null)
-      await fetchInvitations()
-    } catch (err) {
-      toast.error(err.message)
-    } finally {
-      setSubmitting(false)
-    }
+  const handleDeclineInvitation = (invitation) => {
+    askConfirm({
+      message: 'Refuser cette invitation ?',
+      onConfirm: async () => {
+        setSubmitting(true)
+        try {
+          await declineInvitation(invitation.id)
+          toast.success('Invitation refusée')
+          setRespondingTo(null)
+          await fetchInvitations()
+        } catch (err) {
+          toast.error(err.message)
+        } finally {
+          setSubmitting(false)
+        }
+      },
+    })
   }
 
   useEffect(() => {
     fetchInvitations()
   }, [fetchInvitations])
 
-  useEffect(() => {
+  const fetchDashboard = useCallback(async () => {
     if (!user?.id) return
-
-    async function fetchData() {
-      try {
+    setFetchError(false)
+    setLoadingTx(true)
+    setStatsLoading(true)
+    try {
         const [txRes, tRes, bStatsRes, txCountRes] = await Promise.all([
           supabase
             .from('transactions')
@@ -112,8 +124,7 @@ export default function Dashboard() {
             .select('*, tournament:tournaments(*)')
             .or(`player1_uid.eq.${user.id},player2_uid.eq.${user.id}`)
             .not('status', 'eq', 'cancelled')
-            .order('created_at', { ascending: false })
-            .limit(1),
+            .order('created_at', { ascending: false }),
           supabase
             .from('bookings')
             .select('id, date, status')
@@ -127,7 +138,28 @@ export default function Dashboard() {
 
         if (txRes.data) setTransactions(txRes.data)
         if (txCountRes.count) setTxTotal(txCountRes.count)
-        if (tRes.data?.[0]?.tournament) setNextTournament(tRes.data[0])
+
+        if (tRes.data) {
+          // Next tournament (first with a future date)
+          const withTournament = tRes.data.filter((r) => r.tournament)
+          if (withTournament[0]) setNextTournament(withTournament[0])
+
+          // Pending 48h confirmations
+          const now = new Date()
+          const pending = withTournament.filter((r) => {
+            if (r.status !== 'approved') return false
+            const deadline = r.tournament?.confirmation_deadline
+            if (!deadline) return false
+            // In the confirmation window (deadline passed = window open, and tournament not yet started)
+            const deadlineDate = new Date(deadline)
+            const tournamentStart = new Date(`${r.tournament.date}T${r.tournament.start_time}`)
+            if (now < deadlineDate || now > tournamentStart) return false
+            // User hasn't confirmed yet
+            const isP1 = r.player1_uid === user.id
+            return isP1 ? !r.player1_confirmed : !r.player2_confirmed
+          })
+          setPendingConfirmations(pending)
+        }
 
         if (bStatsRes.data) {
           const today = toDateString(new Date())
@@ -137,13 +169,16 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.error('[Dashboard] fetch error:', err)
+        setFetchError(true)
       } finally {
         setLoadingTx(false)
         setStatsLoading(false)
       }
-    }
-    fetchData()
   }, [user?.id])
+
+  useEffect(() => {
+    fetchDashboard()
+  }, [fetchDashboard])
 
   const toggleExpand = (txId) => {
     setExpanded((prev) =>
@@ -155,6 +190,14 @@ export default function Dashboard() {
 
   const visibleTx = showAllTx ? transactions : transactions.slice(0, 5)
 
+  if (fetchError && !transactions.length) {
+    return (
+      <PageWrapper>
+        <ErrorState message="Impossible de charger le tableau de bord" onRetry={fetchDashboard} />
+      </PageWrapper>
+    )
+  }
+
   return (
     <PageWrapper>
       <div className="space-y-5">
@@ -163,6 +206,32 @@ export default function Dashboard() {
           <p className="text-sm text-text-secondary">Bonjour</p>
           <h1 className="text-2xl font-bold text-text">{profile?.display_name}</h1>
         </div>
+
+        {/* Confirmations tournoi 48h */}
+        {pendingConfirmations.length > 0 && (
+          <Card className="!border-l-4 !border-l-danger">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-danger" />
+              <h3 className="font-semibold text-text text-sm">Confirmation requise</h3>
+            </div>
+            <div className="space-y-2">
+              {pendingConfirmations.map((reg) => (
+                <div key={reg.id} className="flex items-center justify-between gap-3 p-3 rounded-[12px] bg-danger/5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-text truncate">{reg.tournament.name}</p>
+                    <p className="text-xs text-text-secondary">
+                      {new Date(reg.tournament.date + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                      {' · '}{reg.tournament.level}
+                    </p>
+                  </div>
+                  <Link to="/my-tournaments">
+                    <Button size="sm"><Check className="w-3.5 h-3.5 mr-1" />Confirmer</Button>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Invitations en attente */}
         {!invitationsLoading && invitations.length > 0 && (
@@ -508,6 +577,7 @@ export default function Dashboard() {
           )}
         </Card>
       </div>
+      <ConfirmModal {...confirmProps} />
     </PageWrapper>
   )
 }

@@ -14,10 +14,13 @@ import toast from 'react-hot-toast'
 import {
   Settings, Save, Plus, Pencil, Trash2, Clock, Euro, MapPin
 } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import useConfirm from '@/hooks/useConfirm'
 
 const DAY_NAMES = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
 export default function AdminSettings() {
+  const { confirmProps, askConfirm } = useConfirm()
   const { config: initialConfig, pricingRules: initialRules, loading: clubLoading } = useClub()
   const [config, setConfig] = useState(null)
   const [pricingRules, setPricingRules] = useState([])
@@ -142,13 +145,20 @@ export default function AdminSettings() {
   }
 
   const deleteRule = async (rule) => {
-    if (!confirm(`Supprimer le tarif "${rule.label}" ?`)) return
-    const { error } = await supabase.from('pricing_rules').delete().eq('id', rule.id)
-    if (error) toast.error(error.message)
-    else {
-      toast.success('Supprimé')
-      setPricingRules((prev) => prev.filter((r) => r.id !== rule.id))
-    }
+    askConfirm({
+      title: 'Supprimer le tarif',
+      message: `Supprimer le tarif "${rule.label}" ?`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('pricing_rules').delete().eq('id', rule.id)
+        if (error) toast.error(error.message)
+        else {
+          toast.success('Supprimé')
+          setPricingRules((prev) => prev.filter((r) => r.id !== rule.id))
+        }
+      },
+    })
   }
 
   const exportCols = [
@@ -320,6 +330,7 @@ export default function AdminSettings() {
           </Button>
         </div>
       </Modal>
+      <ConfirmModal {...confirmProps} />
     </PageWrapper>
   )
 }

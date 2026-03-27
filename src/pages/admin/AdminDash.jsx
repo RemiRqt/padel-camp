@@ -6,11 +6,9 @@ import DateRangePicker from '@/components/ui/DateRangePicker'
 import ExportButtons from '@/components/ui/ExportButtons'
 import { exportExcel, exportPDF } from '@/utils/export'
 import { toDateString } from '@/utils/formatDate'
-import { Link } from 'react-router-dom'
 import {
   Users, CalendarDays, Euro, Gift, ShoppingCart, CreditCard,
-  TrendingUp, BarChart3, Trophy, Percent, ChevronRight,
-  Wallet, Package, Settings
+  TrendingUp, BarChart3, Trophy, Percent
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -336,29 +334,6 @@ export default function AdminDash() {
           </Card>
         </div>
 
-        {/* Actions rapides */}
-        <Card>
-          <h3 className="font-semibold text-text mb-3">Actions rapides</h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-            {[
-              { to: '/admin/members', icon: Users, label: 'Membres', color: 'bg-primary/5 text-primary' },
-              { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente', color: 'bg-primary/5 text-primary' },
-              { to: '/admin/members', icon: Wallet, label: 'Créditer', color: 'bg-success/5 text-success' },
-              { to: '/admin/calendar', icon: Trophy, label: 'Calendrier', color: 'bg-primary/5 text-primary' },
-              { to: '/admin/products', icon: Package, label: 'Articles', color: 'bg-lime/10 text-primary' },
-              { to: '/admin/formulas', icon: CreditCard, label: 'Formules', color: 'bg-success/5 text-success' },
-              { to: '/admin/settings', icon: Settings, label: 'Paramètres', color: 'bg-bg text-text-secondary' },
-            ].map(({ to, icon: Icon, label, color }) => (
-              <Link key={to} to={to}>
-                <div className={`flex items-center gap-2.5 p-3 rounded-[12px] ${color} hover:opacity-80 transition-opacity`}>
-                  <Icon className="w-4.5 h-4.5 shrink-0" />
-                  <span className="text-sm font-medium truncate">{label}</span>
-                  <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-40 shrink-0" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </Card>
       </div>
     </PageWrapper>
   )

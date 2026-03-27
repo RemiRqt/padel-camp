@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 export async function fetchTournaments(statusFilter = null) {
   let q = supabase
     .from('tournaments')
-    .select('*')
+    .select('*, tournament_registrations(id, status)')
     .order('date')
   if (statusFilter) {
     q = Array.isArray(statusFilter)
@@ -12,7 +12,13 @@ export async function fetchTournaments(statusFilter = null) {
   }
   const { data, error } = await q
   if (error) throw error
-  return data || []
+  // Compute reg_count from embedded registrations (exclude cancelled)
+  return (data || []).map((t) => {
+    const regs = t.tournament_registrations || []
+    t.reg_count = regs.filter((r) => r.status !== 'cancelled').length
+    delete t.tournament_registrations
+    return t
+  })
 }
 
 export async function fetchTournamentById(id) {
@@ -183,6 +189,7 @@ export async function adminRejectRegistration(registrationId) {
  * When both confirm → status = confirmed
  */
 export async function confirmParticipation(registrationId, playerNumber) {
+  if (playerNumber !== 1 && playerNumber !== 2) throw new Error('playerNumber doit être 1 ou 2')
   const field = playerNumber === 1 ? 'player1_confirmed' : 'player2_confirmed'
 
   const { data: reg, error: fetchErr } = await supabase
@@ -230,10 +237,11 @@ export async function cancelRegistrationAndPromote(registrationId, tournamentId)
     .limit(1)
 
   if (waitlisted?.[0]) {
-    await supabase
+    const { error: promoteErr } = await supabase
       .from('tournament_registrations')
       .update({ status: 'approved', position: null })
       .eq('id', waitlisted[0].id)
+    if (promoteErr) console.error('[cancelRegistrationAndPromote] promote error:', promoteErr)
     return waitlisted[0]
   }
   return null

@@ -4,6 +4,7 @@ import {
   MapPin, Phone, Clock, Instagram, Euro, Trophy, Calendar,
   ChevronRight, Star, Users, CalendarDays
 } from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 import { supabase } from '@/lib/supabase'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -15,6 +16,7 @@ import { getSlotPrice } from '@/utils/calculatePrice'
 const COURTS = ['terrain_1', 'terrain_2', 'terrain_3']
 
 export default function Landing() {
+  const { user } = useAuth()
   const [pricingRules, setPricingRules] = useState([])
   const [tournaments, setTournaments] = useState([])
   const [events, setEvents] = useState([])
@@ -78,8 +80,8 @@ export default function Landing() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-lime/10 rounded-full -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="w-20 h-20 rounded-[20px] bg-white/10 backdrop-blur-sm mx-auto mb-6 flex items-center justify-center border border-white/10">
-            <span className="text-lime font-bold text-3xl">P</span>
+          <div className="w-20 h-20 rounded-[20px] bg-white/10 backdrop-blur-sm mx-auto mb-6 flex items-center justify-center border border-white/10 p-3">
+            <img src="/favicon.svg" alt="Padel Camp" className="w-full h-full" />
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold mb-2">{clubName}</h1>
           <p className="text-white/60 mb-2 text-sm">{clubDesc}</p>
@@ -90,14 +92,16 @@ export default function Landing() {
             <span>Ouvert 7j/7</span>
           </div>
           <div className="flex gap-3 justify-center flex-wrap">
-            <Link to="/login">
+            <Link to={user ? '/booking' : '/login'}>
               <Button variant="lime" size="lg">Réserver</Button>
             </Link>
-            <Link to="/register">
-              <Button variant="outline" size="lg" className="!border-white/20 !text-white hover:!bg-white/10">
-                Créer un compte
-              </Button>
-            </Link>
+            {!user && (
+              <Link to="/register">
+                <Button variant="outline" size="lg" className="!border-white/20 !text-white hover:!bg-white/10">
+                  Créer un compte
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -198,7 +202,7 @@ export default function Landing() {
               <CalendarDays className="w-4 h-4 text-primary" />
               <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Disponibilités aujourd'hui</h2>
             </div>
-            <Link to="/login" className="text-xs text-primary font-medium hover:underline">Réserver</Link>
+            <Link to={user ? '/booking' : '/login'} className="text-xs text-primary font-medium hover:underline">Réserver</Link>
           </div>
           {slots.length > 0 ? (
             <div className="overflow-x-auto -mx-5 px-5">
@@ -229,7 +233,7 @@ export default function Landing() {
                             <span className={`inline-block w-full max-w-[56px] py-1 rounded-md text-[10px] font-semibold ${
                               occupied ? 'bg-danger/10 text-danger/70' : 'bg-success/10 text-success'
                             }`}>
-                              {occupied ? 'Occupé' : `${getSlotPrice(pricingRules, new Date(), slot.start).toFixed(0)}€`}
+                              {occupied ? 'Occupé' : `${(getSlotPrice(pricingRules, new Date(), slot.start) ?? 0).toFixed(0)}€`}
                             </span>
                           </td>
                         )
@@ -316,16 +320,18 @@ export default function Landing() {
         </Card>
 
         {/* CTA */}
-        <Card className="!bg-primary text-white text-center !p-8">
-          <Users className="w-8 h-8 text-lime mx-auto mb-3" />
-          <h2 className="text-lg font-bold mb-2">Rejoignez le club</h2>
-          <p className="text-sm text-white/60 mb-5">
-            Créez votre compte pour réserver vos créneaux et participer aux tournois
-          </p>
-          <Link to="/register">
-            <Button variant="lime" size="lg">Créer un compte gratuit</Button>
-          </Link>
-        </Card>
+        {!user && (
+          <Card className="!bg-primary text-white text-center !p-8">
+            <Users className="w-8 h-8 text-lime mx-auto mb-3" />
+            <h2 className="text-lg font-bold mb-2">Rejoignez le club</h2>
+            <p className="text-sm text-white/60 mb-5">
+              Créez votre compte pour réserver vos créneaux et participer aux tournois
+            </p>
+            <Link to="/register">
+              <Button variant="lime" size="lg">Créer un compte gratuit</Button>
+            </Link>
+          </Card>
+        )}
       </div>
     </div>
   )

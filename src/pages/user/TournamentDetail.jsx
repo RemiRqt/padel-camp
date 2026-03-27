@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
-  fetchTournamentById, fetchRegistrations, fetchRegistrationCount
+  fetchTournamentById, fetchRegistrations
 } from '@/services/tournamentService'
 import { formatDateFull, formatTime } from '@/utils/formatDate'
 import PageWrapper from '@/components/layout/PageWrapper'
@@ -44,14 +44,14 @@ export default function TournamentDetail() {
   useEffect(() => {
     async function load() {
       try {
-        const [t, regs, count] = await Promise.all([
+        const [t, regs] = await Promise.all([
           fetchTournamentById(id),
           fetchRegistrations(id),
-          fetchRegistrationCount(id),
         ])
         setTournament(t)
-        setRegistrations(regs.filter((r) => r.status !== 'cancelled'))
-        setRegCount(count)
+        const activeRegs = regs.filter((r) => r.status !== 'cancelled')
+        setRegistrations(activeRegs)
+        setRegCount(activeRegs.length)
 
         // Find user's registration
         if (user) {

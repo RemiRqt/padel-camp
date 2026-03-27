@@ -33,8 +33,8 @@ export default function Login() {
     <div className="min-h-screen bg-bg flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-[16px] bg-primary mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">P</span>
+          <div className="w-16 h-16 rounded-[16px] bg-primary mx-auto mb-4 flex items-center justify-center p-2.5">
+            <img src="/favicon.svg" alt="Padel Camp" className="w-full h-full" />
           </div>
           <h1 className="text-2xl font-bold text-text">Padel Camp</h1>
           <p className="text-sm text-text-secondary mt-1">Achères</p>

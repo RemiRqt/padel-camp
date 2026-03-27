@@ -25,7 +25,11 @@ export function findPricingRule(pricingRules, date, startTime) {
  */
 export function getSlotPrice(pricingRules, date, startTime) {
   const rule = findPricingRule(pricingRules, date, startTime)
-  return rule ? parseFloat(rule.price_per_slot) : 0
+  if (!rule) {
+    console.warn(`[getSlotPrice] Aucune règle tarifaire pour ${date} ${startTime}`)
+    return null
+  }
+  return parseFloat(rule.price_per_slot)
 }
 
 /**

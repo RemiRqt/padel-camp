@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
+import useConfirm from '@/hooks/useConfirm'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 import { supabase } from '@/lib/supabase'
 import {
   adminValidateRegistration, adminRejectRegistration, cancelRegistrationAndPromote
@@ -45,6 +47,7 @@ function getMonthDays(year, month) {
 }
 
 export default function AdminCalendar() {
+  const { askConfirm, confirmProps } = useConfirm()
   const today = new Date()
   const [viewYear, setViewYear] = useState(today.getFullYear())
   const [viewMonth, setViewMonth] = useState(today.getMonth())
@@ -157,10 +160,15 @@ export default function AdminCalendar() {
     } catch (err) { toast.error(err.message) }
     finally { setSavingT(false) }
   }
-  const handleDeleteT = async (t) => {
-    if (!confirm(`Supprimer "${t.name}" ?`)) return
-    const { error } = await supabase.from('tournaments').delete().eq('id', t.id)
-    if (error) toast.error(error.message); else { toast.success('Supprimé'); fetchAll() }
+  const handleDeleteT = (t) => {
+    askConfirm({
+      title: `Supprimer "${t.name}" ?`,
+      confirmLabel: 'Supprimer',
+      onConfirm: async () => {
+        const { error } = await supabase.from('tournaments').delete().eq('id', t.id)
+        if (error) toast.error(error.message); else { toast.success('Supprimé'); fetchAll() }
+      },
+    })
   }
 
   // Event CRUD
@@ -191,10 +199,15 @@ export default function AdminCalendar() {
     } catch (err) { toast.error(err.message) }
     finally { setSavingE(false) }
   }
-  const handleDeleteE = async (e) => {
-    if (!confirm(`Supprimer "${e.name}" ?`)) return
-    const { error } = await supabase.from('events').delete().eq('id', e.id)
-    if (error) toast.error(error.message); else { toast.success('Supprimé'); fetchAll() }
+  const handleDeleteE = (e) => {
+    askConfirm({
+      title: `Supprimer "${e.name}" ?`,
+      confirmLabel: 'Supprimer',
+      onConfirm: async () => {
+        const { error } = await supabase.from('events').delete().eq('id', e.id)
+        if (error) toast.error(error.message); else { toast.success('Supprimé'); fetchAll() }
+      },
+    })
   }
 
   // Registrations
@@ -220,15 +233,22 @@ export default function AdminCalendar() {
     catch (err) { toast.error(err.message) }
     finally { setActionLoading(null) }
   }
-  const handleCancelAndPromote = async (regId) => {
-    if (!selTournament || !confirm('Annuler ? Le premier en file d\'attente sera promu.')) return
-    setActionLoading(regId)
-    try {
-      const promoted = await cancelRegistrationAndPromote(regId, selTournament.id)
-      toast.success(promoted ? `Annulée. ${promoted.player1_name} & ${promoted.player2_name} promus !` : 'Annulée')
-      viewRegistrations(selTournament)
-    } catch (err) { toast.error(err.message) }
-    finally { setActionLoading(null) }
+  const handleCancelAndPromote = (regId) => {
+    if (!selTournament) return
+    askConfirm({
+      title: 'Annuler cette inscription ?',
+      message: 'Le premier en file d\'attente sera promu.',
+      confirmLabel: 'Annuler l\'inscription',
+      onConfirm: async () => {
+        setActionLoading(regId)
+        try {
+          const promoted = await cancelRegistrationAndPromote(regId, selTournament.id)
+          toast.success(promoted ? `Annulée. ${promoted.player1_name} & ${promoted.player2_name} promus !` : 'Annulée')
+          viewRegistrations(selTournament)
+        } catch (err) { toast.error(err.message) }
+        finally { setActionLoading(null) }
+      },
+    })
   }
 
   const sortedRegs = [...registrations].sort((a, b) => {
@@ -427,6 +447,8 @@ export default function AdminCalendar() {
           <Button className="w-full" loading={savingE} onClick={handleSaveE}>{editingE ? 'Enregistrer' : 'Créer'}</Button>
         </div>
       </Modal>
+
+      <ConfirmModal {...confirmProps} />
 
       {/* Registrations modal */}
       <Modal isOpen={regOpen} onClose={() => setRegOpen(false)} title={`Inscriptions — ${selTournament?.name || ''}`} className="!max-w-lg">

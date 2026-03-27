@@ -10,8 +10,11 @@ import ExportButtons from '@/components/ui/ExportButtons'
 import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import { CreditCard, Plus, Pencil, Trash2, Gift } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import useConfirm from '@/hooks/useConfirm'
 
 export default function AdminFormulas() {
+  const { confirmProps, askConfirm } = useConfirm()
   const [formulas, setFormulas] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -85,10 +88,17 @@ export default function AdminFormulas() {
   }
 
   const handleDelete = async (f) => {
-    if (!confirm(`Supprimer la formule ${f.amount_paid}€ ?`)) return
-    const { error } = await supabase.from('recharge_formulas').delete().eq('id', f.id)
-    if (error) toast.error(error.message)
-    else { toast.success('Supprimée'); fetch() }
+    askConfirm({
+      title: 'Supprimer la formule',
+      message: `Supprimer la formule ${f.amount_paid}€ ?`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('recharge_formulas').delete().eq('id', f.id)
+        if (error) toast.error(error.message)
+        else { toast.success('Supprimée'); fetch() }
+      },
+    })
   }
 
   const exportCols = [
@@ -205,6 +215,7 @@ export default function AdminFormulas() {
           </Button>
         </div>
       </Modal>
+      <ConfirmModal {...confirmProps} />
     </PageWrapper>
   )
 }

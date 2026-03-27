@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import useConfirm from '@/hooks/useConfirm'
+import ConfirmModal from '@/components/ui/ConfirmModal'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -31,6 +33,7 @@ const REG_STATUS_COLORS = {
 
 export default function MyTournaments() {
   const { user } = useAuth()
+  const { askConfirm, confirmProps } = useConfirm()
   const [registrations, setRegistrations] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null) // reg id
@@ -77,15 +80,20 @@ export default function MyTournaments() {
     finally { setActionLoading(null) }
   }
 
-  const handleDecline = async (regId) => {
-    if (!confirm('Refuser cette invitation ?')) return
-    setActionLoading(regId)
-    try {
-      await declinePartnerInvite(regId)
-      toast.success('Invitation refusée')
-      loadData()
-    } catch (err) { toast.error(err.message) }
-    finally { setActionLoading(null) }
+  const handleDecline = (regId) => {
+    askConfirm({
+      title: 'Refuser cette invitation ?',
+      confirmLabel: 'Refuser',
+      onConfirm: async () => {
+        setActionLoading(regId)
+        try {
+          await declinePartnerInvite(regId)
+          toast.success('Invitation refusée')
+          loadData()
+        } catch (err) { toast.error(err.message) }
+        finally { setActionLoading(null) }
+      },
+    })
   }
 
   const handleConfirm = async (reg) => {
@@ -102,18 +110,24 @@ export default function MyTournaments() {
     finally { setActionLoading(null) }
   }
 
-  const handleCancel = async (reg) => {
-    if (!confirm('Annuler votre inscription ? Si une paire est en file d\'attente, elle sera promue.')) return
-    setActionLoading(reg.id)
-    try {
-      const promoted = await cancelRegistrationAndPromote(reg.id, reg.tournament_id)
-      toast.success(promoted
-        ? `Inscription annulée. ${promoted.player1_name} & ${promoted.player2_name} ont été promus.`
-        : 'Inscription annulée'
-      )
-      loadData()
-    } catch (err) { toast.error(err.message) }
-    finally { setActionLoading(null) }
+  const handleCancel = (reg) => {
+    askConfirm({
+      title: 'Annuler votre inscription ?',
+      message: 'Si une paire est en file d\'attente, elle sera promue.',
+      confirmLabel: 'Annuler l\'inscription',
+      onConfirm: async () => {
+        setActionLoading(reg.id)
+        try {
+          const promoted = await cancelRegistrationAndPromote(reg.id, reg.tournament_id)
+          toast.success(promoted
+            ? `Inscription annulée. ${promoted.player1_name} & ${promoted.player2_name} ont été promus.`
+            : 'Inscription annulée'
+          )
+          loadData()
+        } catch (err) { toast.error(err.message) }
+        finally { setActionLoading(null) }
+      },
+    })
   }
 
   return (
@@ -332,6 +346,7 @@ export default function MyTournaments() {
           </>
         )}
       </div>
+      <ConfirmModal {...confirmProps} />
     </PageWrapper>
   )
 }

@@ -154,21 +154,22 @@ export default function Social() {
   const handleSubmitMatch = async () => {
     const { partner, opponent1, opponent2, sets } = matchForm
     if (!opponent1 || !opponent2) { toast.error('Sélectionnez les 2 adversaires'); return }
-    if (!sets[0].s1 || !sets[0].s2) { toast.error('Entrez au moins le 1er set'); return }
+    if (sets[0].s1 === '' || sets[0].s2 === '') { toast.error('Entrez au moins le 1er set'); return }
 
     setSubmitting(true)
     try {
-      const scoreTeam1 = sets.filter((s) => s.s1 && s.s2).map((s) => `${s.s1}/${s.s2}`).join(' ')
-      const scoreTeam2 = sets.filter((s) => s.s1 && s.s2).map((s) => `${s.s2}/${s.s1}`).join(' ')
+      const scoreTeam1 = sets.filter((s) => s.s1 !== '' && s.s2 !== '').map((s) => `${s.s1}/${s.s2}`).join(' ')
+      const scoreTeam2 = sets.filter((s) => s.s1 !== '' && s.s2 !== '').map((s) => `${s.s2}/${s.s1}`).join(' ')
 
       // Determine winner: count sets won
       let setsWonTeam1 = 0, setsWonTeam2 = 0
       sets.forEach((s) => {
-        if (!s.s1 || !s.s2) return
-        if (parseInt(s.s1) > parseInt(s.s2)) setsWonTeam1++
-        else setsWonTeam2++
+        if (s.s1 === '' || s.s2 === '') return
+        const a = parseInt(s.s1), b = parseInt(s.s2)
+        if (a > b) setsWonTeam1++
+        else if (b > a) setsWonTeam2++
       })
-      const winner = setsWonTeam1 >= setsWonTeam2 ? 'team1' : 'team2'
+      const winner = setsWonTeam1 > setsWonTeam2 ? 'team1' : setsWonTeam2 > setsWonTeam1 ? 'team2' : 'team1'
 
       const { error } = await supabase.from('matches').insert({
         player1_id: user.id,
@@ -330,18 +331,24 @@ export default function Social() {
                 const won = (inTeam1 && m.winner === 'team1') || (!inTeam1 && m.winner === 'team2')
                 return (
                   <div key={m.id} className={`p-3 rounded-[12px] ${won ? 'bg-green-50' : 'bg-red-50'}`}>
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs">
-                        <p className="font-medium text-text">
-                          {m.p1?.display_name}{m.p2?.display_name ? ` & ${m.p2.display_name}` : ''}
-                        </p>
-                        <p className="text-text-tertiary">
-                          vs {m.o1?.display_name}{m.o2?.display_name ? ` & ${m.o2.display_name}` : ''}
-                        </p>
+                    <div className="flex items-center justify-between gap-2">
+                      {/* Équipe 1 — gauche */}
+                      <div className="flex-1 min-w-0 text-xs">
+                        <p className="font-medium text-text truncate">{m.p1?.display_name}</p>
+                        {m.p2?.display_name && <p className="text-text-secondary truncate">{m.p2.display_name}</p>}
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-text">{m.score_team1}</p>
-                        <p className="text-xs text-text-tertiary">{m.score_team2}</p>
+                      {/* Scores — centre */}
+                      <div className="flex items-center gap-1.5">
+                        {m.score_team1?.split(' ').map((s, i) => (
+                          <span key={i} className="text-xs font-bold text-text bg-white/60 px-1.5 py-0.5 rounded-md">
+                            {s.replace('/', '-')}
+                          </span>
+                        ))}
+                      </div>
+                      {/* Équipe 2 — droite */}
+                      <div className="flex-1 min-w-0 text-xs text-right">
+                        <p className="font-medium text-text truncate">{m.o1?.display_name}</p>
+                        {m.o2?.display_name && <p className="text-text-secondary truncate">{m.o2.display_name}</p>}
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-1.5">

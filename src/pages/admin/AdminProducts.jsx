@@ -10,8 +10,11 @@ import ExportButtons from '@/components/ui/ExportButtons'
 import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import { Package, Plus, Pencil, Trash2, FolderOpen } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import useConfirm from '@/hooks/useConfirm'
 
 export default function AdminProducts() {
+  const { confirmProps, askConfirm } = useConfirm()
   const [categories, setCategories] = useState([])
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
@@ -65,10 +68,17 @@ export default function AdminProducts() {
   }
 
   const deleteCat = async (cat) => {
-    if (!confirm(`Supprimer "${cat.name}" et tous ses produits ?`)) return
-    const { error } = await supabase.from('product_categories').delete().eq('id', cat.id)
-    if (error) toast.error(error.message)
-    else { toast.success('Supprimée'); if (activeTab === cat.id) setActiveTab(null); fetchAll() }
+    askConfirm({
+      title: 'Supprimer la catégorie',
+      message: `Supprimer "${cat.name}" et tous ses produits ?`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('product_categories').delete().eq('id', cat.id)
+        if (error) toast.error(error.message)
+        else { toast.success('Supprimée'); if (activeTab === cat.id) setActiveTab(null); fetchAll() }
+      },
+    })
   }
 
   // Product CRUD
@@ -112,10 +122,17 @@ export default function AdminProducts() {
   }
 
   const deleteProd = async (p) => {
-    if (!confirm(`Supprimer "${p.name}" ?`)) return
-    const { error } = await supabase.from('products').delete().eq('id', p.id)
-    if (error) toast.error(error.message)
-    else { toast.success('Supprimé'); fetchAll() }
+    askConfirm({
+      title: 'Supprimer l\'article',
+      message: `Supprimer "${p.name}" ?`,
+      confirmLabel: 'Supprimer',
+      variant: 'danger',
+      onConfirm: async () => {
+        const { error } = await supabase.from('products').delete().eq('id', p.id)
+        if (error) toast.error(error.message)
+        else { toast.success('Supprimé'); fetchAll() }
+      },
+    })
   }
 
   const toggleProd = async (p) => {
@@ -273,6 +290,7 @@ export default function AdminProducts() {
           </Button>
         </div>
       </Modal>
+      <ConfirmModal {...confirmProps} />
     </PageWrapper>
   )
 }

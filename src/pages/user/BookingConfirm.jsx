@@ -13,6 +13,8 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import useConfirm from '@/hooks/useConfirm'
 import toast from 'react-hot-toast'
 import {
   MapPin, Clock, Euro, Users, UserPlus, Search,
@@ -49,6 +51,7 @@ export default function BookingConfirm() {
   const [searching, setSearching] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const { confirmProps, askConfirm } = useConfirm()
 
   const fetchData = useCallback(async () => {
     try {
@@ -143,21 +146,28 @@ export default function BookingConfirm() {
   }
 
   // Pay a player's share from balance
-  const handlePayBalance = async (player) => {
-    if (!confirm(`Débiter ${parseFloat(player.amount).toFixed(2)}€ du solde de ${player.player_name} ?`)) return
-    setSubmitting(true)
-    try {
-      await payPlayerShare({
-        playerId: player.id,
-        bookingId: id,
-        userId: player.user_id,
-        amount: parseFloat(player.amount),
-        performedBy: user.id,
-      })
-      toast.success(`${player.player_name} payé`)
-      await fetchData()
-    } catch (err) { toast.error(err.message) }
-    finally { setSubmitting(false) }
+  const handlePayBalance = (player) => {
+    askConfirm({
+      title: 'Débiter le solde',
+      message: `Débiter ${parseFloat(player.amount).toFixed(2)}€ du solde de ${player.player_name} ?`,
+      confirmLabel: 'Débiter',
+      variant: 'danger',
+      onConfirm: async () => {
+        setSubmitting(true)
+        try {
+          await payPlayerShare({
+            playerId: player.id,
+            bookingId: id,
+            userId: player.user_id,
+            amount: parseFloat(player.amount),
+            performedBy: user.id,
+          })
+          toast.success(`${player.player_name} payé`)
+          await fetchData()
+        } catch (err) { toast.error(err.message) }
+        finally { setSubmitting(false) }
+      },
+    })
   }
 
   // Mark as external payment
@@ -179,32 +189,46 @@ export default function BookingConfirm() {
   }
 
   // Reset slot back to "Place disponible"
-  const handleClearSlot = async (player) => {
-    if (!confirm(`Retirer ${player.player_name} ?`)) return
-    setSubmitting(true)
-    try {
-      await clearSlot(player.id)
-      // Reset amount
-      const { error } = await supabase
-        .from('booking_players')
-        .update({ amount: share })
-        .eq('id', player.id)
-      if (error) throw error
-      toast.success(`${player.player_name} retiré`)
-      await fetchData()
-    } catch (err) { toast.error(err.message) }
-    finally { setSubmitting(false) }
+  const handleClearSlot = (player) => {
+    askConfirm({
+      title: 'Retirer le joueur',
+      message: `Retirer ${player.player_name} ?`,
+      confirmLabel: 'Retirer',
+      variant: 'danger',
+      onConfirm: async () => {
+        setSubmitting(true)
+        try {
+          await clearSlot(player.id)
+          // Reset amount
+          const { error } = await supabase
+            .from('booking_players')
+            .update({ amount: share })
+            .eq('id', player.id)
+          if (error) throw error
+          toast.success(`${player.player_name} retiré`)
+          await fetchData()
+        } catch (err) { toast.error(err.message) }
+        finally { setSubmitting(false) }
+      },
+    })
   }
 
-  const handleCancel = async () => {
-    if (!confirm('Annuler cette réservation ?')) return
-    setCancelling(true)
-    try {
-      await cancelBooking(id, 'user')
-      toast.success('Réservation annulée')
-      navigate('/dashboard')
-    } catch (err) { toast.error(err.message) }
-    finally { setCancelling(false) }
+  const handleCancel = () => {
+    askConfirm({
+      title: 'Annuler la réservation',
+      message: 'Annuler cette réservation ?',
+      confirmLabel: 'Annuler la réservation',
+      variant: 'danger',
+      onConfirm: async () => {
+        setCancelling(true)
+        try {
+          await cancelBooking(id, 'user')
+          toast.success('Réservation annulée')
+          navigate('/dashboard')
+        } catch (err) { toast.error(err.message) }
+        finally { setCancelling(false) }
+      },
+    })
   }
 
   if (loading) {
@@ -411,6 +435,8 @@ export default function BookingConfirm() {
           </div>
         )}
       </div>
+
+      <ConfirmModal {...confirmProps} />
 
       {/* Add player modal */}
       <Modal

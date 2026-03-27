@@ -36,59 +36,80 @@ export async function createBooking({ userId, userName, courtId, date, startTime
     .single()
   if (error) throw error
 
-  // 2. Create 4 player slots
-  const slots = [
-    {
-      booking_id: booking.id,
-      user_id: userId,
-      player_name: userName,
-      parts: 1,
-      payment_method: 'balance',
-      amount: share,
-      payment_status: payNow === 'full' || payNow === 'my_part' ? 'paid' : 'pending',
-    },
-    ...Array.from({ length: 3 }, () => ({
-      booking_id: booking.id,
-      user_id: null,
-      player_name: 'Place disponible',
-      parts: 1,
-      payment_method: 'balance',
-      amount: share,
-      payment_status: payNow === 'full' ? 'paid' : 'pending',
-    })),
-  ]
+  // 2. Create 4 player slots + 3. Debit (with rollback on failure)
+  try {
+    const slots = [
+      {
+        booking_id: booking.id,
+        user_id: userId,
+        player_name: userName,
+        parts: 1,
+        payment_method: 'balance',
+        amount: share,
+        payment_status: payNow === 'full' || payNow === 'my_part' ? 'paid' : 'pending',
+      },
+      ...Array.from({ length: 3 }, () => ({
+        booking_id: booking.id,
+        user_id: null,
+        player_name: 'Place disponible',
+        parts: 1,
+        payment_method: 'balance',
+        amount: share,
+        payment_status: payNow === 'full' ? 'paid' : 'pending',
+      })),
+    ]
 
-  const { error: pErr } = await supabase.from('booking_players').insert(slots)
-  if (pErr) throw pErr
+    const { error: pErr } = await supabase.from('booking_players').insert(slots)
+    if (pErr) throw pErr
 
-  // 3. Debit
-  if (payNow === 'my_part') {
-    const { error: dErr } = await supabase.rpc('debit_user', {
-      p_user_id: userId,
-      p_amount: share,
-      p_description: `Session ${courtId.replace('_', ' ')} — ${startTime.slice(0, 5)} (1/4)`,
-      p_performed_by: userId,
-      p_type: 'debit_session',
-      p_booking_id: booking.id,
-    })
-    if (dErr) throw dErr
-  } else if (payNow === 'full') {
-    const { error: dErr } = await supabase.rpc('debit_user', {
-      p_user_id: userId,
-      p_amount: totalPrice,
-      p_description: `Session ${courtId.replace('_', ' ')} — ${startTime.slice(0, 5)} (4/4)`,
-      p_performed_by: userId,
-      p_type: 'debit_session',
-      p_booking_id: booking.id,
-      p_parts_count: 4,
-    })
-    if (dErr) throw dErr
+    if (payNow === 'my_part') {
+      const { error: dErr } = await supabase.rpc('debit_user', {
+        p_user_id: userId,
+        p_amount: share,
+        p_description: `Session ${courtId.replace('_', ' ')} — ${startTime.slice(0, 5)} (1/4)`,
+        p_performed_by: userId,
+        p_type: 'debit_session',
+        p_booking_id: booking.id,
+      })
+      if (dErr) throw dErr
+    } else if (payNow === 'full') {
+      const { error: dErr } = await supabase.rpc('debit_user', {
+        p_user_id: userId,
+        p_amount: totalPrice,
+        p_description: `Session ${courtId.replace('_', ' ')} — ${startTime.slice(0, 5)} (4/4)`,
+        p_performed_by: userId,
+        p_type: 'debit_session',
+        p_booking_id: booking.id,
+        p_parts_count: 4,
+      })
+      if (dErr) throw dErr
+    }
+  } catch (err) {
+    // Rollback: cancel the booking if player slots or debit failed
+    await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id)
+    throw err
   }
 
   return booking
 }
 
 export async function cancelBooking(bookingId, cancelledBy = 'user') {
+  // User cancellation: only allowed 24h+ before the booking
+  if (cancelledBy === 'user') {
+    const { data: booking, error: fetchErr } = await supabase
+      .from('bookings')
+      .select('date, start_time')
+      .eq('id', bookingId)
+      .single()
+    if (fetchErr) throw fetchErr
+
+    const bookingStart = new Date(`${booking.date}T${booking.start_time}`)
+    const hoursUntil = (bookingStart - new Date()) / (1000 * 60 * 60)
+    if (hoursUntil < 24) {
+      throw new Error('Annulation impossible moins de 24h avant le créneau. Contactez le club.')
+    }
+  }
+
   const { data, error } = await supabase
     .from('bookings')
     .update({ status: 'cancelled', cancelled_by: cancelledBy })
@@ -161,7 +182,6 @@ export async function assignPlayerToSlot({ slotId, bookingId, userId, playerName
  * Reset a slot back to empty
  */
 export async function clearSlot(slotId) {
-  const share = 0 // will be recalculated by the caller
   const { error } = await supabase
     .from('booking_players')
     .update({
@@ -200,7 +220,7 @@ export async function payPlayerShare({ playerId, bookingId, userId, amount, perf
  * Mark a player's share as paid externally (CB/cash)
  */
 export async function markPlayerExternal({ playerId, bookingId, paymentMethod, amount, playerName, performedBy }) {
-  await supabase.from('transactions').insert({
+  const { error: txErr } = await supabase.from('transactions').insert({
     user_id: null,
     type: 'external_payment',
     amount,
@@ -209,6 +229,7 @@ export async function markPlayerExternal({ playerId, bookingId, paymentMethod, a
     booking_id: bookingId,
     payment_method: paymentMethod,
   })
+  if (txErr) throw txErr
 
   const { error } = await supabase
     .from('booking_players')
@@ -274,23 +295,12 @@ export async function acceptInvitation({ playerId, paymentMethod, userId }) {
 
   const amount = parseFloat(player.amount)
 
-  // Update invitation status and payment method
+  // 1. Update invitation status first (safe, no money involved)
   const updateData = {
     invitation_status: 'accepted',
     payment_method: paymentMethod,
   }
-
-  // If paying by balance, debit immediately
   if (paymentMethod === 'balance' && userId) {
-    const { error: debitErr } = await supabase.rpc('debit_user', {
-      p_user_id: userId,
-      p_amount: amount,
-      p_description: `Session ${player.booking?.court_id?.replace('_', ' ')} — ${player.booking?.start_time?.slice(0, 5)}`,
-      p_performed_by: userId,
-      p_type: 'debit_session',
-      p_booking_id: player.booking_id,
-    })
-    if (debitErr) throw debitErr
     updateData.payment_status = 'paid'
   }
 
@@ -301,6 +311,24 @@ export async function acceptInvitation({ playerId, paymentMethod, userId }) {
     .select()
     .single()
   if (error) throw error
+
+  // 2. Debit after update succeeded (if balance payment)
+  if (paymentMethod === 'balance' && userId) {
+    const { error: debitErr } = await supabase.rpc('debit_user', {
+      p_user_id: userId,
+      p_amount: amount,
+      p_description: `Session ${player.booking?.court_id?.replace('_', ' ')} — ${player.booking?.start_time?.slice(0, 5)}`,
+      p_performed_by: userId,
+      p_type: 'debit_session',
+      p_booking_id: player.booking_id,
+    })
+    if (debitErr) {
+      // Rollback: revert payment status
+      await supabase.from('booking_players').update({ payment_status: 'pending' }).eq('id', playerId)
+      throw debitErr
+    }
+  }
+
   return data
 }
 

@@ -1,14 +1,9 @@
-import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
-
 /**
  * Export data to Excel (.xlsx)
- * @param {Array<object>} data - rows
- * @param {Array<{key: string, label: string}>} columns - column definitions
- * @param {string} filename - without extension
+ * Libraries loaded on demand to keep bundle small
  */
-export function exportExcel(data, columns, filename = 'export') {
+export async function exportExcel(data, columns, filename = 'export') {
+  const XLSX = await import('xlsx')
   const rows = data.map((row) =>
     columns.reduce((acc, col) => {
       acc[col.label] = row[col.key] ?? ''
@@ -23,12 +18,13 @@ export function exportExcel(data, columns, filename = 'export') {
 
 /**
  * Export data to PDF
- * @param {Array<object>} data - rows
- * @param {Array<{key: string, label: string}>} columns - column definitions
- * @param {string} filename - without extension
- * @param {string} title - document title
+ * Libraries loaded on demand to keep bundle small
  */
-export function exportPDF(data, columns, filename = 'export', title = '') {
+export async function exportPDF(data, columns, filename = 'export', title = '') {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ])
   const doc = new jsPDF()
 
   if (title) {

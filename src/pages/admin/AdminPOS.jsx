@@ -21,6 +21,8 @@ import {
   Package, Users, Minus, Plus, Lock, CalendarDays, ChevronLeft,
   ChevronRight, Trophy, Star, Trash2, MapPin, Clock
 } from 'lucide-react'
+import ConfirmModal from '@/components/ui/ConfirmModal'
+import useConfirm from '@/hooks/useConfirm'
 
 const PAY_BADGE = {
   paid: { color: 'success', label: 'Payé' },
@@ -36,6 +38,7 @@ const COURTS = [
 export default function AdminPOS() {
   const { user: admin, profile: adminProfile } = useAuth()
   const { config, pricingRules } = useClub()
+  const { confirmProps, askConfirm } = useConfirm()
 
   const [tab, setTab] = useState('sessions')
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -262,30 +265,45 @@ export default function AdminPOS() {
   }
 
   const handleRemovePlayer = async (player) => {
-    if (!confirm(`Retirer ${player.player_name} ?`)) return
-    setSubmitting(true)
-    try {
-      const share = Math.round((parseFloat(selectedBooking.price) / 4) * 100) / 100
-      await supabase.from('booking_players').update({
-        user_id: null, player_name: 'Place disponible', parts: 1,
-        payment_method: 'balance', payment_status: 'pending', amount: share,
-      }).eq('id', player.id)
-      toast.success('Joueur retiré')
-      await refreshSession()
-    } catch (err) { toast.error(err.message) }
-    finally { setSubmitting(false) }
+    askConfirm({
+      title: 'Retirer le joueur',
+      message: `Retirer ${player.player_name} ?`,
+      confirmLabel: 'Retirer',
+      variant: 'danger',
+      onConfirm: async () => {
+        setSubmitting(true)
+        try {
+          const share = Math.round((parseFloat(selectedBooking.price) / 4) * 100) / 100
+          await supabase.from('booking_players').update({
+            user_id: null, player_name: 'Place disponible', parts: 1,
+            payment_method: 'balance', payment_status: 'pending', amount: share,
+          }).eq('id', player.id)
+          toast.success('Joueur retiré')
+          await refreshSession()
+        } catch (err) { toast.error(err.message) }
+        finally { setSubmitting(false) }
+      },
+    })
   }
 
   const handleCancelBooking = async () => {
-    if (!selectedBooking || !confirm('Annuler cette session ?')) return
-    setSubmitting(true)
-    try {
-      await supabase.from('bookings').update({ status: 'cancelled', cancelled_by: 'admin' }).eq('id', selectedBooking.id)
-      toast.success('Session annulée')
-      setSessionModal(false)
-      fetchBookings()
-    } catch (err) { toast.error(err.message) }
-    finally { setSubmitting(false) }
+    if (!selectedBooking) return
+    askConfirm({
+      title: 'Annuler la session',
+      message: 'Annuler cette session ?',
+      confirmLabel: 'Annuler la session',
+      variant: 'danger',
+      onConfirm: async () => {
+        setSubmitting(true)
+        try {
+          await supabase.from('bookings').update({ status: 'cancelled', cancelled_by: 'admin' }).eq('id', selectedBooking.id)
+          toast.success('Session annulée')
+          setSessionModal(false)
+          fetchBookings()
+        } catch (err) { toast.error(err.message) }
+        finally { setSubmitting(false) }
+      },
+    })
   }
 
   // ===== NEW BOOKING (empty slot) =====
@@ -901,6 +919,7 @@ export default function AdminPOS() {
           <Button className="w-full" loading={submitting} onClick={submitSale}>Encaisser {cartTotal.toFixed(2)}€</Button>
         </div>
       </Modal>
+      <ConfirmModal {...confirmProps} />
     </PageWrapper>
   )
 }

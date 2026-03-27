@@ -23,6 +23,7 @@ const adminLinks = [
   { to: '/admin/members', icon: Users, label: 'Membres' },
   { to: '/admin/calendar', icon: Calendar, label: 'Calendrier' },
   { to: '/admin/products', icon: Package, label: 'Articles' },
+  { to: '/admin/tournaments', icon: Trophy, label: 'Tournois' },
   { to: '/admin/formulas', icon: CreditCard, label: 'Formules' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ]
@@ -54,14 +55,8 @@ export default function Header() {
       >
         <div className="h-full px-4 flex items-center justify-between">
           <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2.5">
-            <img
-              src="/logo-padel-camp.png"
-              alt="Padel Camp"
-              className="h-9 w-auto rounded-lg"
-              onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex' }}
-            />
-            <div className="w-9 h-9 rounded-lg bg-primary items-center justify-center hidden">
-              <span className="text-white font-bold text-sm">P</span>
+            <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center p-1.5">
+              <img src="/favicon.svg" alt="Padel Camp" className="w-full h-full" />
             </div>
             <div className="leading-tight">
               <p className="text-sm font-bold text-text">Padel Camp</p>

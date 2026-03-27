@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchTournaments, fetchRegistrationCount } from '@/services/tournamentService'
+import { fetchTournaments, fetchUserRegistrations } from '@/services/tournamentService'
 import { useAuth } from '@/context/AuthContext'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
@@ -19,7 +19,7 @@ const STATUS_LABELS = { open: 'Inscriptions ouvertes', full: 'Complet', closed: 
 export default function Tournaments() {
   const { user } = useAuth()
   const [tournaments, setTournaments] = useState([])
-  const [regCounts, setRegCounts] = useState({}) // tournamentId → count
+  const [myRegs, setMyRegs] = useState({}) // tournamentId → registration status
   const [loading, setLoading] = useState(true)
   const [levelFilter, setLevelFilter] = useState('Tous')
   const [catFilter, setCatFilter] = useState('Toutes')
@@ -30,18 +30,18 @@ export default function Tournaments() {
       const data = await fetchTournaments(['open', 'full', 'closed', 'completed'])
       setTournaments(data)
 
-      // Fetch registration counts in parallel
-      const counts = {}
-      await Promise.all(
-        data.map(async (t) => {
-          counts[t.id] = await fetchRegistrationCount(t.id)
-        })
-      )
-      setRegCounts(counts)
+      // Fetch user registrations
+      if (user) {
+        const regs = await fetchUserRegistrations(user.id)
+        const regsMap = {}
+        regs.forEach((r) => { regsMap[r.tournament_id] = r.status })
+        setMyRegs(regsMap)
+      }
+
       setLoading(false)
     }
     load()
-  }, [])
+  }, [user])
 
   const filtered = useMemo(() => {
     return tournaments.filter((t) => {
@@ -119,8 +119,9 @@ export default function Tournaments() {
                   <TournamentCard
                     key={t.id}
                     tournament={t}
-                    regCount={regCounts[t.id] || 0}
+                    regCount={t.reg_count || 0}
                     isLoggedIn={!!user}
+                    myRegStatus={myRegs[t.id]}
                   />
                 ))}
               </div>
@@ -136,9 +137,10 @@ export default function Tournaments() {
                   <TournamentCard
                     key={t.id}
                     tournament={t}
-                    regCount={regCounts[t.id] || 0}
+                    regCount={t.reg_count || 0}
                     isLoggedIn={!!user}
                     isPast
+                    myRegStatus={myRegs[t.id]}
                   />
                 ))}
               </div>
@@ -157,7 +159,24 @@ export default function Tournaments() {
   )
 }
 
-function TournamentCard({ tournament: t, regCount, isLoggedIn, isPast = false }) {
+const REG_STATUS_LABELS = {
+  pending_partner: 'En attente partenaire',
+  pending_admin: 'En attente validation',
+  approved: 'Approuvée',
+  waitlist: 'Liste d\'attente',
+  confirmed: 'Confirmée',
+  cancelled: 'Annulée',
+}
+const REG_STATUS_COLORS = {
+  pending_partner: 'warning',
+  pending_admin: 'warning',
+  approved: 'primary',
+  waitlist: 'gray',
+  confirmed: 'success',
+  cancelled: 'danger',
+}
+
+function TournamentCard({ tournament: t, regCount, isLoggedIn, isPast = false, myRegStatus }) {
   const spotsLeft = t.max_teams - regCount
 
   return (
@@ -182,6 +201,11 @@ function TournamentCard({ tournament: t, regCount, isLoggedIn, isPast = false })
                   <Badge color={STATUS_COLORS[t.status] || 'gray'}>
                     {STATUS_LABELS[t.status] || t.status}
                   </Badge>
+                  {myRegStatus && (
+                    <Badge color={REG_STATUS_COLORS[myRegStatus] || 'gray'}>
+                      {REG_STATUS_LABELS[myRegStatus] || myRegStatus}
+                    </Badge>
+                  )}
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-text-tertiary shrink-0 mt-1" />

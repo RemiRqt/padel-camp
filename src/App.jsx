@@ -1,41 +1,48 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from '@/context/AuthContext'
 import AppLayout from '@/components/layout/AppLayout'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import AdminRoute from '@/components/layout/AdminRoute'
+import OfflineBanner from '@/components/ui/OfflineBanner'
+import ErrorBoundary from '@/components/ui/ErrorBoundary'
 
-// Pages publiques
+// Pages publiques (Landing eager, reste lazy)
 import Landing from '@/pages/public/Landing'
-import Login from '@/pages/public/Login'
-import Register from '@/pages/public/Register'
-import Tournaments from '@/pages/public/Tournaments'
-import Events from '@/pages/public/Events'
-import AuthCallback from '@/pages/AuthCallback'
+const Login = lazy(() => import('@/pages/public/Login'))
+const Register = lazy(() => import('@/pages/public/Register'))
+const Tournaments = lazy(() => import('@/pages/public/Tournaments'))
+const Events = lazy(() => import('@/pages/public/Events'))
+const AuthCallback = lazy(() => import('@/pages/AuthCallback'))
 
 // Pages utilisateur
-import Dashboard from '@/pages/user/Dashboard'
-import Booking from '@/pages/user/Booking'
-import BookingConfirm from '@/pages/user/BookingConfirm'
-import Profile from '@/pages/user/Profile'
-import MyTournaments from '@/pages/user/MyTournaments'
-import TournamentDetail from '@/pages/user/TournamentDetail'
-import TournamentRegister from '@/pages/user/TournamentRegister'
-import Social from '@/pages/user/Social'
+const Dashboard = lazy(() => import('@/pages/user/Dashboard'))
+const Booking = lazy(() => import('@/pages/user/Booking'))
+const BookingConfirm = lazy(() => import('@/pages/user/BookingConfirm'))
+const Profile = lazy(() => import('@/pages/user/Profile'))
+const MyTournaments = lazy(() => import('@/pages/user/MyTournaments'))
+const TournamentDetail = lazy(() => import('@/pages/user/TournamentDetail'))
+const TournamentRegister = lazy(() => import('@/pages/user/TournamentRegister'))
+const Social = lazy(() => import('@/pages/user/Social'))
 
 // Pages admin
-import AdminDash from '@/pages/admin/AdminDash'
-import AdminMembers from '@/pages/admin/AdminMembers'
-import AdminCalendar from '@/pages/admin/AdminCalendar'
-import AdminProducts from '@/pages/admin/AdminProducts'
-import AdminPOS from '@/pages/admin/AdminPOS'
-import AdminFormulas from '@/pages/admin/AdminFormulas'
-import AdminSettings from '@/pages/admin/AdminSettings'
+const AdminDash = lazy(() => import('@/pages/admin/AdminDash'))
+const AdminMembers = lazy(() => import('@/pages/admin/AdminMembers'))
+const AdminCalendar = lazy(() => import('@/pages/admin/AdminCalendar'))
+const AdminProducts = lazy(() => import('@/pages/admin/AdminProducts'))
+const AdminPOS = lazy(() => import('@/pages/admin/AdminPOS'))
+const AdminFormulas = lazy(() => import('@/pages/admin/AdminFormulas'))
+const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
+const AdminTournaments = lazy(() => import('@/pages/admin/AdminTournaments'))
+const NotFound = lazy(() => import('@/pages/NotFound'))
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
+        <OfflineBanner />
         <Toaster
           position="top-center"
           toastOptions={{
@@ -47,6 +54,7 @@ export default function App() {
             },
           }}
         />
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 border-4 border-[#0B2778] border-t-transparent rounded-full animate-spin" /></div>}>
         <Routes>
           {/* Routes publiques */}
           <Route path="/" element={<Landing />} />
@@ -76,10 +84,16 @@ export default function App() {
             <Route path="/admin/products" element={<AdminProducts />} />
             <Route path="/admin/pos" element={<AdminPOS />} />
             <Route path="/admin/formulas" element={<AdminFormulas />} />
+            <Route path="/admin/tournaments" element={<AdminTournaments />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
           </Route>
+
+          {/* 404 */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   )
 }
