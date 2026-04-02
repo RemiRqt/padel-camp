@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchAllEvents } from '@/services/eventService'
 import { formatDateFull, formatTime, monthTiny, dayNum } from '@/utils/formatDate'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
@@ -13,12 +13,7 @@ export default function Events() {
   useEffect(() => {
     async function load() {
       try {
-        const { data, error } = await supabase
-          .from('events')
-          .select('*')
-          .eq('is_public', true)
-          .order('date')
-        if (error) throw error
+        const data = await fetchAllEvents()
         setEvents(data || [])
       } catch (err) {
         console.error('[Events] fetch error:', err)

@@ -106,6 +106,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 | `/admin/products` | Admin | Catalogue articles par catégories |
 | `/admin/pos` | Admin | Point de vente |
 | `/admin/formulas` | Admin | Configurer formules de recharge |
+| `/admin/financial-export` | Admin | Rapport financier avec aperçu + export Excel/PDF |
 
 ## Schéma SQL PostgreSQL (migration initiale)
 
@@ -629,12 +630,25 @@ L'utilisateur voit un solde global unique (balance + balance_bonus). La ventilat
 - **Glass effect** : `backdrop-filter: blur(40px)` pour bottom nav
 - **Séparateurs** : `0.5px solid rgba(0,0,0,0.04)`
 
-## État actuel — MVP livré le 24/03/2026
+## État actuel — Mis à jour le 27/03/2026
 
-### Pages implémentées (24 pages)
-**Publiques** : Landing (/), Login, Register, AuthCallback
-**User** : Dashboard, Booking (grille 3 terrains), BookingConfirm (4 joueurs, paiement indépendant), Profile, Tournaments, TournamentDetail, TournamentRegister, MyTournaments, Social (amis + matchs), Events
-**Admin** : Dashboard (8 KPIs + recharts), Bookings, Members, Recharge, Formulas, Tournaments, Events, Products, POS (onglets sessions/articles, grille terrains), Settings
+### Pages implémentées (25 pages)
+**Publiques** : Landing (/), Login, Register, AuthCallback, 404
+**User** : Dashboard (solde, invitations, confirmations 48h, résas, tournoi, transactions), Booking (grille 3 terrains), BookingConfirm (4 joueurs, paiement indépendant, invitations), Profile, Tournaments (badges inscription), TournamentDetail, TournamentRegister, MyTournaments, Social (amis + matchs), Events
+**Admin** : Dashboard (8 KPIs + recharts), Calendar, Members, Formulas, Tournaments (liste + vue détail inscriptions/waitlist), Products, POS (onglets sessions/articles, grille terrains), Settings
+
+### Améliorations récentes (27/03/2026)
+- **Code-splitting** : lazy-load toutes les pages (bundle principal 274 KB au lieu de 1.7 MB)
+- **PWA** : manifest.json, service worker auto-versionné (cache-first static, network-first nav), bandeau hors ligne
+- **Logo SVG** partout (header, sidebar, landing, login, register)
+- **ConfirmModal** : remplace tous les confirm() natifs (17 occurrences)
+- **ErrorBoundary** global + ErrorState sur Dashboard et Booking
+- **Export lazy** : xlsx/jspdf chargés au clic (plus dans le bundle initial)
+- **Annulation 24h** : vérification côté service (pas seulement front)
+- **Alertes confirmation 48h tournoi** dans le dashboard
+- **Badges inscription** sur la liste des tournois user
+- **Rollbacks** : createBooking() et acceptInvitation() annulent en cas d'échec partiel
+- **Fix** : score 0 matchs, affichage scores (6-3), 529 rate limiting, winner égalité sets
 
 ### Système de paiement
 - Prix session ÷ 4 joueurs (padel = 4 joueurs toujours)
@@ -642,23 +656,246 @@ L'utilisateur voit un solde global unique (balance + balance_bonus). La ventilat
 - Montant modifiable par l'admin dans le POS
 - Trigger SQL `update_booking_payment_status` auto-met à jour `bookings.payment_status` (pending → partial → paid)
 - Fonctions SQL `debit_user()` (bonus first) et `credit_user()` (avec formules)
+- Rollback automatique si débit échoue après création résa/acceptation invitation
 
 ### Migrations SQL
 - `001_initial_schema.sql` : tables, enums, index, triggers, fonctions, RLS, données initiales
-- `002_payment_status.sql` : champs payment_status sur bookings + booking_players, trigger auto
+- `002_payment_status.sql` : champs payment_status sur bookings + booking_players, trigger auto, RLS user insert/update
 - `003_social.sql` : tables friends + matches + RLS
 - `004_seed_data.sql` : 10 membres test, ~670 résas mars, transactions, tournois, événements, produits
+- `005_invitation_status.sql` : invitation_status sur booking_players, RLS player updates
+- `006_fix_payment_status_trigger.sql` : fix trigger payment status
+- `007_reset_payment_status.sql` : reset payment status
 
 ### Navigation
-- **Mobile** : Header fixe (logo + burger menu plein écran) + Bottom nav (Accueil, Réserver, Social, Tournois, Compte)
-- **Desktop** : Sidebar gauche avec tous les liens user + admin
+- **Mobile** : Header fixe (logo SVG + burger menu plein écran) + Bottom nav (Accueil, Réserver, Social, Tournois, Compte)
+- **Desktop** : Sidebar gauche avec tous les liens user + admin (dont Tournois)
 
 ### Déploiement
 - `git push` → Vercel auto-deploy
 - Variables env dans Vercel : VITE_SUPABASE_URL + VITE_SUPABASE_ANON_KEY
 - Supabase Auth redirect URL : https://padel-camp-iota.vercel.app/auth/callback
 
-## Conventions de code
+## Prochain travail — Page Admin Rapport Financier
+
+### Route : `/admin/financial-export`
+
+### Description
+Page admin avec **aperçu visuel AVANT export** des données financières sur une période donnée.
+
+### Layout
+1. **En-tête** : titre + date pickers (début/fin) + bouton Actualiser
+2. **4 cartes KPI** (grid 2x2) :
+   - Sessions : total + ventilation wallet/CB/espèces
+   - Articles : total + ventilation wallet/CB/espèces
+   - Rechargements : total + ventilation CB/espèces
+   - Total encaissements : par méthode de paiement
+3. **Carte Soldes Wallets** : soldes réel+bonus début → fin de période, avec variation
+4. **Onglets transactions** : Wallet / CB / Espèces
+5. **Tableau détail** : Date, Membre, Type, Montant — trié par date desc, avec sous-totaux par type
+6. **Boutons export** : Excel / PDF / Imprimer
+
+### Implémentation
+- Fetch toutes les transactions sur la période via `supabase.from('transactions')`
+- Calcul des KPI côté client (groupBy payment_method + type)
+- Soldes wallets : `SUM(balance + balance_bonus)` des profiles à date début vs fin (approximé via transactions)
+- Onglets filtrent les transactions par payment_method
+- Export Excel : classeur multi-feuilles (Résumé, Wallet, CB, Espèces)
+- Export PDF : utilise jsPDF + autoTable (déjà lazy-loadé)
+- Export lazy : xlsx et jspdf chargés au clic uniquement (pattern existant dans `src/utils/export.js`)
+- Design : style Padel Camp (bleu #0B2778, lime #D4E620), cards arrondies, badges
+
+### Fichiers à créer/modifier
+- `src/pages/admin/AdminFinancialExport.jsx` — nouvelle page
+- `src/App.jsx` — ajouter route lazy `/admin/financial-export`
+- `src/components/layout/Sidebar.jsx` + `Header.jsx` — ajouter lien nav admin
+
+## Règles de développement
+
+### Principes fondamentaux
+1. **Simplicité** — un fichier doit être compris en < 30 secondes
+2. **Lisibilité** — nommage clair, structure prévisible
+3. **Séparation des responsabilités** — composant → service → base de données
+4. **Performance par défaut** — chargement initial < 1s, navigation < 200ms
+5. **Scalabilité** — pagination, limites, index, cache dès le départ
+
+### Architecture obligatoire
+```
+src/
+├── components/          # Interface utilisateur uniquement
+│   ├── ui/              # Composants réutilisables (Button, Modal, Input...)
+│   ├── layout/          # Navigation, Header, Sidebar, PageWrapper
+│   └── features/        # Composants métier (booking/, tournament/, admin/)
+├── services/            # Logique métier + accès base de données
+│   ├── bookingService.js
+│   ├── tournamentService.js
+│   ├── userService.js
+│   ├── productService.js
+│   ├── transactionService.js
+│   └── clubService.js
+├── hooks/               # Logique React réutilisable
+├── lib/
+│   ├── supabase.js      # Client Supabase
+│   ├── permissions.js   # Système de permissions centralisé
+│   └── utils.js         # Utilitaires génériques
+├── context/             # Providers React (Auth, Club)
+├── utils/               # Helpers spécifiques (formatDate, calculatePrice, export)
+├── pages/               # Pages (routing uniquement + composition de composants)
+│   ├── public/
+│   ├── user/
+│   └── admin/
+└── styles/
+```
+
+### Séparation composant → service → DB
+
+**Interdit** : accès Supabase depuis un composant ou une page
+```jsx
+// ❌ INTERDIT
+const { data } = await supabase.from('bookings').select('*')
+```
+
+**Obligatoire** : passer par un service
+```jsx
+// ✅ CORRECT — dans services/bookingService.js
+export async function getBookingsByDate(date, courtId) {
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, user_id, user_name, court_id, start_time, end_time, price, status')
+    .eq('date', date)
+    .eq('status', 'confirmed')
+  if (error) throw error
+  return data
+}
+
+// ✅ CORRECT — dans la page
+import { getBookingsByDate } from '@/services/bookingService'
+const bookings = await getBookingsByDate(selectedDate)
+```
+
+### Système de permissions centralisé
+
+Fichier : `src/lib/permissions.js`
+```jsx
+// ✅ CORRECT
+import { canAccess } from '@/lib/permissions'
+if (canAccess(user.role, 'admin.members')) { ... }
+
+// ❌ INTERDIT — vérification directe du rôle
+if (user.role === 'admin') { ... }
+```
+
+### Règles de requêtes DB
+- **Jamais** de `select('*')` — lister les colonnes nécessaires
+- **Toujours** limiter les résultats (`.limit()`)
+- **Regrouper** les requêtes d'une même vue (1 fonction service = 1 vue)
+- **Pagination** obligatoire pour les listes (`.range(from, to)`)
+- **Index** sur les colonnes filtrées (déjà en place côté SQL)
+
+```jsx
+// ❌ MAUVAIS — requêtes séquentielles multiples
+const users = await getUsers()
+const bookings = await getBookings()
+const transactions = await getTransactions()
+
+// ✅ BON — une seule fonction agrégée
+export async function getDashboardData(userId) {
+  const [bookings, transactions, tournaments] = await Promise.all([
+    supabase.from('bookings').select('id, date, start_time, court_id, status')
+      .eq('user_id', userId).gte('date', today).limit(5),
+    supabase.from('transactions').select('id, type, amount, created_at')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(10),
+    supabase.from('tournament_registrations').select('id, tournament_id, status')
+      .or(`player1_uid.eq.${userId},player2_uid.eq.${userId}`).limit(5)
+  ])
+  return { bookings: bookings.data, transactions: transactions.data, tournaments: tournaments.data }
+}
+```
+
+### Limites de taille des fichiers
+| Élément | Maximum |
+|---------|---------|
+| Fichier | 300 lignes |
+| Fonction | 30 lignes |
+| Composant React | 200 lignes |
+| Fichier service | 300 lignes |
+
+Si dépassé → découper en sous-composants ou modules.
+
+### Performance frontend
+- **Code-splitting** : `React.lazy()` pour toutes les pages (déjà en place)
+- **Lazy imports** : bibliothèques lourdes (recharts, xlsx, jspdf) chargées au clic
+- **Skeleton loaders** obligatoires sur chaque page avec chargement async
+- **Suspense** : wrapping de tous les composants lazy
+- **Pas de blank screen** : toujours un fallback visible
+
+```jsx
+// ✅ CORRECT
+const Chart = React.lazy(() => import('recharts'))
+
+<Suspense fallback={<Skeleton />}>
+  <Chart />
+</Suspense>
+```
+
+### Gestion d'erreurs
+Toute opération asynchrone doit inclure un try/catch avec feedback utilisateur.
+
+```jsx
+// ✅ CORRECT
+try {
+  const data = await bookingService.createBooking(params)
+  toast.success('Réservation créée')
+} catch (error) {
+  console.error('createBooking failed:', error)
+  toast.error(error.message || 'Erreur lors de la réservation')
+}
+```
+
+### Scalabilité obligatoire
+- **Pagination** : `.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)` sur toutes les listes
+- **Limites** : jamais de fetch sans `.limit()`
+- **Index DB** : sur toutes les colonnes filtrées/triées (déjà en place)
+- **Cache** : `useClub()` pour les données statiques (config, tarifs, formules)
+
+### Anti-patterns interdits
+- ❌ Requêtes DB dans les composants UI ou pages
+- ❌ Logique métier dupliquée entre composants
+- ❌ `select('*')` sans lister les colonnes
+- ❌ Multiple appels API pour une seule vue (regrouper en 1 service)
+- ❌ Fichiers > 300 lignes (pages) ou > 1000 lignes (tout fichier)
+- ❌ Vérifications de rôle en dur (`role === 'admin'`)
+- ❌ Dépendances inutilisées
+- ❌ Bibliothèques lourdes chargées au démarrage
+- ❌ Absence de gestion d'erreurs sur les appels async
+- ❌ Listes sans pagination
+
+### Checklist avant livraison
+- [ ] Architecture service layer respectée (pas de supabase dans les pages)
+- [ ] Permissions via `lib/permissions.js`
+- [ ] Requêtes optimisées (colonnes explicites, limit, pagination)
+- [ ] Erreurs gérées (try/catch + toast)
+- [ ] UI charge instantanément (skeleton/loading)
+- [ ] Fichier < 300 lignes
+- [ ] Code lisible en < 30 secondes
+
+### Workflow de développement
+```
+1. Architecture (service + types nécessaires)
+   ↓
+2. Service layer (fonctions DB)
+   ↓
+3. Optimisation requêtes (select, limit, index)
+   ↓
+4. UI (composant React)
+   ↓
+5. Gestion d'erreurs (try/catch + feedback)
+   ↓
+6. Tests manuels
+```
+Ne jamais commencer par l'UI.
+
+### Conventions de code
 - Composants React : PascalCase, fichiers .jsx
 - Hooks customs : useNomDuHook.js
 - Services : nomService.js
@@ -667,9 +904,9 @@ L'utilisateur voit un solde global unique (balance + balance_bonus). La ventilat
 - Imports absolus via alias `@/` → `src/`
 - Toast notifications via react-hot-toast
 - Icônes via lucide-react
-- Graphiques via recharts
+- Graphiques via recharts (lazy-loaded)
 - Supabase client : import depuis `@/lib/supabase.js`
-- Requêtes Supabase : toujours gérer les erreurs avec `.then()` ou `try/catch`
+- Requêtes Supabase : toujours dans les services, jamais dans les pages
 - Realtime : utiliser `supabase.channel()` pour les mises à jour en temps réel des créneaux
 
 <!-- VERCEL BEST PRACTICES START -->

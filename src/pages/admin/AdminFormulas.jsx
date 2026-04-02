@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchFormulas, saveFormula, toggleFormula, deleteFormula } from '@/services/clubService'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
@@ -24,12 +24,15 @@ export default function AdminFormulas() {
 
   const fetch = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('recharge_formulas')
-      .select('*')
-      .order('amount_paid')
-    setFormulas(data || [])
-    setLoading(false)
+    try {
+      const data = await fetchFormulas(false)
+      setFormulas(data)
+    } catch (err) {
+      toast.error('Erreur chargement formules')
+      console.error('[AdminFormulas] fetch error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { fetch() }, [])
@@ -55,20 +58,8 @@ export default function AdminFormulas() {
     }
     setSaving(true)
     try {
-      if (editing) {
-        const { error } = await supabase
-          .from('recharge_formulas')
-          .update({ amount_paid: paid, amount_credited: credited })
-          .eq('id', editing.id)
-        if (error) throw error
-        toast.success('Formule mise à jour')
-      } else {
-        const { error } = await supabase
-          .from('recharge_formulas')
-          .insert({ amount_paid: paid, amount_credited: credited })
-        if (error) throw error
-        toast.success('Formule créée')
-      }
+      await saveFormula(editing?.id, { amount_paid: paid, amount_credited: credited })
+      toast.success(editing ? 'Formule mise à jour' : 'Formule créée')
       setModalOpen(false)
       fetch()
     } catch (err) {
@@ -79,12 +70,12 @@ export default function AdminFormulas() {
   }
 
   const handleToggle = async (f) => {
-    const { error } = await supabase
-      .from('recharge_formulas')
-      .update({ is_active: !f.is_active })
-      .eq('id', f.id)
-    if (error) toast.error(error.message)
-    else fetch()
+    try {
+      await toggleFormula(f.id, f.is_active)
+      fetch()
+    } catch (err) {
+      toast.error(err.message)
+    }
   }
 
   const handleDelete = async (f) => {
@@ -94,9 +85,11 @@ export default function AdminFormulas() {
       confirmLabel: 'Supprimer',
       variant: 'danger',
       onConfirm: async () => {
-        const { error } = await supabase.from('recharge_formulas').delete().eq('id', f.id)
-        if (error) toast.error(error.message)
-        else { toast.success('Supprimée'); fetch() }
+        try {
+          await deleteFormula(f.id)
+          toast.success('Supprimée')
+          fetch()
+        } catch (err) { toast.error(err.message) }
       },
     })
   }

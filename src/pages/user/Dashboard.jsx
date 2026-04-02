@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useUserBookings } from '@/hooks/useBookings'
-import { supabase } from '@/lib/supabase'
 import { getMyInvitations, acceptInvitation, declineInvitation } from '@/services/bookingService'
+import { fetchUserDashboard } from '@/services/dashboardService'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import ErrorState from '@/components/ui/ErrorState'
 import useConfirm from '@/hooks/useConfirm'
@@ -11,23 +11,15 @@ import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
-import Modal from '@/components/ui/Modal'
+import DashboardConfirmations from '@/components/features/dashboard/DashboardConfirmations'
+import DashboardInvitations from '@/components/features/dashboard/DashboardInvitations'
+import DashboardTransactions from '@/components/features/dashboard/DashboardTransactions'
 import toast from 'react-hot-toast'
 import {
-  Wallet, CalendarDays, Trophy, Clock, ArrowUpRight,
-  ArrowDownRight, Gift, CreditCard, ChevronRight, ChevronDown, ChevronUp,
-  CheckCircle, Calendar, UserPlus, Banknote, X, Check, AlertTriangle
+  Wallet, CalendarDays, Trophy, Clock,
+  CheckCircle, Calendar, ChevronRight
 } from 'lucide-react'
 import { formatDateShort, formatTime, toDateString, monthTiny, dayNum, formatDateFull } from '@/utils/formatDate'
-
-const TX_ICONS = {
-  credit: { icon: ArrowDownRight, color: 'text-success', bg: 'bg-success/10' },
-  credit_bonus: { icon: Gift, color: 'text-lime-dark', bg: 'bg-lime/20' },
-  debit_session: { icon: ArrowUpRight, color: 'text-danger', bg: 'bg-danger/10' },
-  debit_product: { icon: ArrowUpRight, color: 'text-warning', bg: 'bg-warning/10' },
-  refund: { icon: ArrowDownRight, color: 'text-success', bg: 'bg-success/10' },
-  external_payment: { icon: CreditCard, color: 'text-text-secondary', bg: 'bg-bg' },
-}
 
 export default function Dashboard() {
   const { profile, user } = useAuth()
@@ -38,8 +30,6 @@ export default function Dashboard() {
   const [pendingConfirmations, setPendingConfirmations] = useState([])
   const [loadingTx, setLoadingTx] = useState(true)
   const [fetchError, setFetchError] = useState(false)
-  const [expanded, setExpanded] = useState([])
-  const [showAllTx, setShowAllTx] = useState(false)
 
   // Booking stats
   const [bookingStats, setBookingStats] = useState({ completed: 0, upcoming: 0 })
@@ -48,7 +38,7 @@ export default function Dashboard() {
   // Invitations
   const [invitations, setInvitations] = useState([])
   const [invitationsLoading, setInvitationsLoading] = useState(true)
-  const [respondingTo, setRespondingTo] = useState(null) // invitation being responded to
+  const [respondingTo, setRespondingTo] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
   const { confirmProps, askConfirm } = useConfirm()
@@ -112,61 +102,25 @@ export default function Dashboard() {
     setLoadingTx(true)
     setStatsLoading(true)
     try {
-        const [txRes, tRes, bStatsRes, txCountRes] = await Promise.all([
-          supabase
-            .from('transactions')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(20),
-          supabase
-            .from('tournament_registrations')
-            .select('*, tournament:tournaments(*)')
-            .or(`player1_uid.eq.${user.id},player2_uid.eq.${user.id}`)
-            .not('status', 'eq', 'cancelled')
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('bookings')
-            .select('id, date, status')
-            .eq('user_id', user.id)
-            .eq('status', 'confirmed'),
-          supabase
-            .from('transactions')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', user.id),
-        ])
+        const result = await fetchUserDashboard(user.id)
+        setTransactions(result.transactions)
+        setTxTotal(result.txTotal)
+        setBookingStats(result.bookingStats)
 
-        if (txRes.data) setTransactions(txRes.data)
-        if (txCountRes.count) setTxTotal(txCountRes.count)
+        if (result.registrations[0]) setNextTournament(result.registrations[0])
 
-        if (tRes.data) {
-          // Next tournament (first with a future date)
-          const withTournament = tRes.data.filter((r) => r.tournament)
-          if (withTournament[0]) setNextTournament(withTournament[0])
-
-          // Pending 48h confirmations
-          const now = new Date()
-          const pending = withTournament.filter((r) => {
-            if (r.status !== 'approved') return false
-            const deadline = r.tournament?.confirmation_deadline
-            if (!deadline) return false
-            // In the confirmation window (deadline passed = window open, and tournament not yet started)
-            const deadlineDate = new Date(deadline)
-            const tournamentStart = new Date(`${r.tournament.date}T${r.tournament.start_time}`)
-            if (now < deadlineDate || now > tournamentStart) return false
-            // User hasn't confirmed yet
-            const isP1 = r.player1_uid === user.id
-            return isP1 ? !r.player1_confirmed : !r.player2_confirmed
-          })
-          setPendingConfirmations(pending)
-        }
-
-        if (bStatsRes.data) {
-          const today = toDateString(new Date())
-          const completed = bStatsRes.data.filter((b) => b.date < today).length
-          const upcoming = bStatsRes.data.filter((b) => b.date >= today).length
-          setBookingStats({ completed, upcoming })
-        }
+        const now = new Date()
+        const pending = result.registrations.filter((r) => {
+          if (r.status !== 'approved') return false
+          const deadline = r.tournament?.confirmation_deadline
+          if (!deadline) return false
+          const deadlineDate = new Date(deadline)
+          const tournamentStart = new Date(`${r.tournament.date}T${r.tournament.start_time}`)
+          if (now < deadlineDate || now > tournamentStart) return false
+          const isP1 = r.player1_uid === user.id
+          return isP1 ? !r.player1_confirmed : !r.player2_confirmed
+        })
+        setPendingConfirmations(pending)
       } catch (err) {
         console.error('[Dashboard] fetch error:', err)
         setFetchError(true)
@@ -180,15 +134,7 @@ export default function Dashboard() {
     fetchDashboard()
   }, [fetchDashboard])
 
-  const toggleExpand = (txId) => {
-    setExpanded((prev) =>
-      prev.includes(txId) ? prev.filter((id) => id !== txId) : [...prev, txId]
-    )
-  }
-
   const courtLabel = (courtId) => `Terrain ${courtId?.replace('terrain_', '') || '?'}`
-
-  const visibleTx = showAllTx ? transactions : transactions.slice(0, 5)
 
   if (fetchError && !transactions.length) {
     return (
@@ -208,143 +154,23 @@ export default function Dashboard() {
         </div>
 
         {/* Confirmations tournoi 48h */}
-        {pendingConfirmations.length > 0 && (
-          <Card className="!border-l-4 !border-l-danger">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertTriangle className="w-4 h-4 text-danger" />
-              <h3 className="font-semibold text-text text-sm">Confirmation requise</h3>
-            </div>
-            <div className="space-y-2">
-              {pendingConfirmations.map((reg) => (
-                <div key={reg.id} className="flex items-center justify-between gap-3 p-3 rounded-[12px] bg-danger/5">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-text truncate">{reg.tournament.name}</p>
-                    <p className="text-xs text-text-secondary">
-                      {new Date(reg.tournament.date + 'T00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                      {' · '}{reg.tournament.level}
-                    </p>
-                  </div>
-                  <Link to="/my-tournaments">
-                    <Button size="sm"><Check className="w-3.5 h-3.5 mr-1" />Confirmer</Button>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+        <DashboardConfirmations confirmations={pendingConfirmations} />
 
         {/* Invitations en attente */}
-        {!invitationsLoading && invitations.length > 0 && (
-          <Card className="!border-l-4 !border-l-warning">
-            <div className="flex items-center gap-2 mb-3">
-              <UserPlus className="w-4 h-4 text-warning" />
-              <h3 className="font-semibold text-text text-sm">
-                Invitations ({invitations.length})
-              </h3>
-            </div>
-            <div className="space-y-2.5">
-              {invitations.map((inv) => {
-                const courtLabel = `Terrain ${inv.booking?.court_id?.replace('terrain_', '') || '?'}`
-                return (
-                  <div key={inv.id} className="rounded-[12px] bg-bg p-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-11 h-11 rounded-[10px] bg-primary/10 flex flex-col items-center justify-center shrink-0">
-                        <span className="text-xs font-bold text-primary leading-none">
-                          {inv.booking?.date ? dayNum(inv.booking.date + 'T00:00') : '?'}
-                        </span>
-                        <span className="text-[9px] text-primary/70 uppercase">
-                          {inv.booking?.date ? monthTiny(inv.booking.date + 'T00:00') : ''}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text">{courtLabel}</p>
-                        <p className="text-xs text-text-secondary">
-                          {formatTime(inv.booking?.start_time)} – {formatTime(inv.booking?.end_time)}
-                        </p>
-                        <p className="text-xs text-text-tertiary mt-0.5">
-                          Invité par {inv.booking?.user_name}
-                        </p>
-                      </div>
-                      <p className="text-sm font-bold text-primary shrink-0">
-                        {parseFloat(inv.amount).toFixed(2)}€
-                      </p>
-                    </div>
-                    <div className="flex gap-2 mt-3 pt-2.5 border-t border-separator/50">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="flex-1 !text-danger !border-danger/20"
-                        onClick={() => handleDeclineInvitation(inv)}
-                        loading={submitting}
-                      >
-                        <X className="w-3.5 h-3.5 mr-1" />Refuser
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setRespondingTo(inv)}
-                      >
-                        <Check className="w-3.5 h-3.5 mr-1" />Accepter
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
-        )}
-
-        {/* Modal choix de paiement */}
-        <Modal
-          isOpen={!!respondingTo}
-          onClose={() => setRespondingTo(null)}
-          title="Choisir mon mode de paiement"
-        >
-          {respondingTo && (
-            <div className="space-y-4">
-              <div className="rounded-[12px] bg-bg p-4 text-center">
-                <p className="text-xs text-text-secondary mb-1">Ma part</p>
-                <p className="text-2xl font-bold text-primary">
-                  {parseFloat(respondingTo.amount).toFixed(2)}€
-                </p>
-                <p className="text-xs text-text-tertiary mt-1">
-                  {respondingTo.booking?.date && formatDateFull(respondingTo.booking.date + 'T00:00')}
-                  {' · '}
-                  {formatTime(respondingTo.booking?.start_time)} – {formatTime(respondingTo.booking?.end_time)}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Button
-                  className="w-full"
-                  onClick={() => handleAcceptInvitation(respondingTo, 'balance')}
-                  loading={submitting}
-                >
-                  <Wallet className="w-4 h-4 mr-2" />
-                  Payer avec mon solde ({total.toFixed(2)}€)
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => handleAcceptInvitation(respondingTo, 'cb')}
-                  loading={submitting}
-                >
-                  <CreditCard className="w-4 h-4 mr-2" />
-                  Carte bancaire (sur place)
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full"
-                  onClick={() => handleAcceptInvitation(respondingTo, 'cash')}
-                  loading={submitting}
-                >
-                  <Banknote className="w-4 h-4 mr-2" />
-                  Espèces (sur place)
-                </Button>
-              </div>
-            </div>
-          )}
-        </Modal>
+        <DashboardInvitations
+          invitations={invitations}
+          loading={invitationsLoading}
+          respondingTo={respondingTo}
+          setRespondingTo={setRespondingTo}
+          submitting={submitting}
+          total={total}
+          onAccept={handleAcceptInvitation}
+          onDecline={handleDeclineInvitation}
+          formatTime={formatTime}
+          formatDateFull={formatDateFull}
+          dayNum={dayNum}
+          monthTiny={monthTiny}
+        />
 
         {/* Solde */}
         <Card elevated className="!bg-gradient-to-br !from-primary !to-primary-dark !text-white">
@@ -457,125 +283,8 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Transactions avec expand */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-text">
-              Transactions récentes {txTotal > 0 && <span className="text-text-tertiary font-normal">({txTotal})</span>}
-            </h3>
-          </div>
-          {loadingTx ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-[12px] bg-bg animate-pulse" />)}
-            </div>
-          ) : transactions.length > 0 ? (
-            <>
-              <div className="space-y-1">
-                {visibleTx.map((tx) => {
-                  const meta = TX_ICONS[tx.type] || TX_ICONS.external_payment
-                  const Icon = meta.icon
-                  const isDebit = tx.type.startsWith('debit') || tx.type === 'external_payment'
-                  const isExpanded = expanded.includes(tx.id)
-                  const txDate = new Date(tx.created_at)
-
-                  return (
-                    <div key={tx.id}>
-                      <button
-                        onClick={() => toggleExpand(tx.id)}
-                        className="w-full flex items-center gap-3 py-2.5 px-1 rounded-[10px] hover:bg-bg/50 transition-colors text-left cursor-pointer"
-                      >
-                        <div className={`w-9 h-9 rounded-[10px] ${meta.bg} flex items-center justify-center shrink-0`}>
-                          <Icon className={`w-4 h-4 ${meta.color}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-text truncate">{tx.description}</p>
-                          <p className="text-[11px] text-text-tertiary">
-                            {txDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                            {' · '}
-                            {txDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        <p className={`text-sm font-semibold shrink-0 ${isDebit ? 'text-danger' : 'text-success'}`}>
-                          {isDebit ? '-' : '+'}{parseFloat(tx.amount).toFixed(2)}€
-                        </p>
-                        {isExpanded
-                          ? <ChevronUp className="w-4 h-4 text-text-tertiary shrink-0" />
-                          : <ChevronDown className="w-4 h-4 text-text-tertiary shrink-0" />
-                        }
-                      </button>
-
-                      {/* Expanded details */}
-                      {isExpanded && (
-                        <div className="ml-12 mr-1 mb-2 p-3 rounded-[10px] bg-bg space-y-1.5 text-xs">
-                          <div className="flex justify-between">
-                            <span className="text-text-secondary">Type</span>
-                            <Badge color={isDebit ? 'danger' : 'success'}>
-                              {tx.type === 'credit' ? 'Crédit'
-                                : tx.type === 'credit_bonus' ? 'Bonus'
-                                : tx.type === 'debit_session' ? 'Session'
-                                : tx.type === 'debit_product' ? 'Article'
-                                : tx.type === 'refund' ? 'Remboursement'
-                                : 'Paiement ext.'}
-                            </Badge>
-                          </div>
-                          {parseFloat(tx.bonus_used || 0) > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-text-secondary">Bonus utilisé</span>
-                              <span className="font-medium text-lime-dark">{parseFloat(tx.bonus_used).toFixed(2)}€</span>
-                            </div>
-                          )}
-                          {parseFloat(tx.real_used || 0) > 0 && (
-                            <div className="flex justify-between">
-                              <span className="text-text-secondary">Solde réel utilisé</span>
-                              <span className="font-medium">{parseFloat(tx.real_used).toFixed(2)}€</span>
-                            </div>
-                          )}
-                          {tx.formula_amount_paid && (
-                            <div className="flex justify-between">
-                              <span className="text-text-secondary">Formule</span>
-                              <span className="font-medium">
-                                {parseFloat(tx.formula_amount_paid).toFixed(0)}€ → {parseFloat(tx.formula_amount_credited).toFixed(0)}€
-                                {tx.formula_bonus && <span className="text-lime-dark"> (+{parseFloat(tx.formula_bonus).toFixed(0)}€)</span>}
-                              </span>
-                            </div>
-                          )}
-                          {tx.payment_method && (
-                            <div className="flex justify-between">
-                              <span className="text-text-secondary">Paiement</span>
-                              <span className="font-medium capitalize">{tx.payment_method}</span>
-                            </div>
-                          )}
-                          <div className="flex justify-between">
-                            <span className="text-text-secondary">Date complète</span>
-                            <span className="font-medium">
-                              {txDate.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
-                              {' '}{txDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Show more / less */}
-              {transactions.length > 5 && (
-                <button
-                  onClick={() => setShowAllTx(!showAllTx)}
-                  className="w-full mt-3 py-2 text-xs font-medium text-primary hover:underline cursor-pointer text-center"
-                >
-                  {showAllTx ? 'Voir moins' : `Voir tout (${transactions.length})`}
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-4">
-              <Clock className="w-6 h-6 text-text-tertiary mx-auto mb-1" />
-              <p className="text-sm text-text-tertiary">Aucune activité récente</p>
-            </div>
-          )}
-        </Card>
+        {/* Transactions */}
+        <DashboardTransactions transactions={transactions} txTotal={txTotal} loading={loadingTx} />
       </div>
       <ConfirmModal {...confirmProps} />
     </PageWrapper>

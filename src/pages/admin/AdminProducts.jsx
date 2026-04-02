@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { fetchCategoriesAndProducts, saveCategory, deleteCategory as deleteCategoryService, saveProduct, deleteProduct as deleteProductService, toggleProduct } from '@/services/productService'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
@@ -33,13 +33,16 @@ export default function AdminProducts() {
 
   const fetchAll = async () => {
     setLoading(true)
-    const [cRes, pRes] = await Promise.all([
-      supabase.from('product_categories').select('*').order('sort_order'),
-      supabase.from('products').select('*, category:product_categories(name)').order('name'),
-    ])
-    setCategories(cRes.data || [])
-    setProducts(pRes.data || [])
-    setLoading(false)
+    try {
+      const { categories, products } = await fetchCategoriesAndProducts()
+      setCategories(categories)
+      setProducts(products)
+    } catch (err) {
+      toast.error('Erreur chargement catalogue')
+      console.error('[AdminProducts] fetchAll error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { fetchAll() }, [])
@@ -53,13 +56,7 @@ export default function AdminProducts() {
     if (!catName.trim()) { toast.error('Nom requis'); return }
     setSaving(true)
     try {
-      if (editingCat) {
-        const { error } = await supabase.from('product_categories').update({ name: catName.trim() }).eq('id', editingCat.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('product_categories').insert({ name: catName.trim(), sort_order: categories.length })
-        if (error) throw error
-      }
+      await saveCategory(editingCat?.id, catName.trim(), categories.length)
       toast.success(editingCat ? 'Catégorie mise à jour' : 'Catégorie créée')
       setCatModalOpen(false)
       fetchAll()
@@ -74,9 +71,12 @@ export default function AdminProducts() {
       confirmLabel: 'Supprimer',
       variant: 'danger',
       onConfirm: async () => {
-        const { error } = await supabase.from('product_categories').delete().eq('id', cat.id)
-        if (error) toast.error(error.message)
-        else { toast.success('Supprimée'); if (activeTab === cat.id) setActiveTab(null); fetchAll() }
+        try {
+          await deleteCategoryService(cat.id)
+          toast.success('Supprimée')
+          if (activeTab === cat.id) setActiveTab(null)
+          fetchAll()
+        } catch (err) { toast.error(err.message) }
       },
     })
   }
@@ -107,13 +107,7 @@ export default function AdminProducts() {
         category_id: prodForm.category_id,
         description: prodForm.description.trim() || null,
       }
-      if (editingProd) {
-        const { error } = await supabase.from('products').update(data).eq('id', editingProd.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('products').insert(data)
-        if (error) throw error
-      }
+      await saveProduct(editingProd?.id, data)
       toast.success(editingProd ? 'Article mis à jour' : 'Article créé')
       setProdModalOpen(false)
       fetchAll()
@@ -128,17 +122,22 @@ export default function AdminProducts() {
       confirmLabel: 'Supprimer',
       variant: 'danger',
       onConfirm: async () => {
-        const { error } = await supabase.from('products').delete().eq('id', p.id)
-        if (error) toast.error(error.message)
-        else { toast.success('Supprimé'); fetchAll() }
+        try {
+          await deleteProductService(p.id)
+          toast.success('Supprimé')
+          fetchAll()
+        } catch (err) { toast.error(err.message) }
       },
     })
   }
 
   const toggleProd = async (p) => {
-    const { error } = await supabase.from('products').update({ is_active: !p.is_active }).eq('id', p.id)
-    if (error) toast.error(error.message)
-    else fetchAll()
+    try {
+      await toggleProduct(p.id, p.is_active)
+      fetchAll()
+    } catch (err) {
+      toast.error(err.message)
+    }
   }
 
   const exportCols = [

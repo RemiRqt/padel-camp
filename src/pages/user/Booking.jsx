@@ -3,18 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useClub } from '@/hooks/useClub'
 import { useBookings } from '@/hooks/useBookings'
-import { supabase } from '@/lib/supabase'
 import { generateSlots, isSlotBooked, isSlotPast } from '@/utils/slots'
-import { getSlotPrice, findPricingRule } from '@/utils/calculatePrice'
+import { getSlotPrice } from '@/utils/calculatePrice'
 import { formatTime, toDateString, addDays, getDayIndex, DAYS_SHORT, isSameDay, isToday } from '@/utils/formatDate'
-import { createBooking, partPrice } from '@/services/bookingService'
+import { createBooking, partPrice, fetchDayBlockingEvents } from '@/services/bookingService'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
-import Button from '@/components/ui/Button'
-import Modal from '@/components/ui/Modal'
 import ErrorState from '@/components/ui/ErrorState'
+import BookingConfirmModal from '@/components/features/booking/BookingConfirmModal'
 import toast from 'react-hot-toast'
-import { Check, Trophy, Star } from 'lucide-react'
+import { Trophy, Star } from 'lucide-react'
 
 const COURTS = [
   { id: 'terrain_1', name: 'Terrain 1', short: 'T1' },
@@ -38,17 +36,7 @@ export default function Booking() {
   const [dayEvents, setDayEvents] = useState([])
   useEffect(() => {
     const dateStr = toDateString(selectedDate)
-    async function fetchDayEvents() {
-      const [tRes, eRes] = await Promise.all([
-        supabase.from('tournaments').select('name, start_time, end_time, level, category').eq('date', dateStr).not('status', 'eq', 'cancelled'),
-        supabase.from('events').select('name, start_time, end_time').eq('date', dateStr),
-      ])
-      setDayEvents([
-        ...(tRes.data || []).map((t) => ({ ...t, type: 'tournament' })),
-        ...(eRes.data || []).map((e) => ({ ...e, type: 'event' })),
-      ])
-    }
-    fetchDayEvents()
+    fetchDayBlockingEvents(dateStr).then(setDayEvents).catch(() => setDayEvents([]))
   }, [selectedDate])
 
   // Check if a slot is blocked by a tournament/event
@@ -115,8 +103,6 @@ export default function Booking() {
       setCreating(false)
     }
   }
-
-  const courtName = (courtId) => COURTS.find((c) => c.id === courtId)?.name || courtId
 
   if (clubLoading) {
     return (
@@ -263,115 +249,18 @@ export default function Booking() {
         )}
       </div>
 
-      {/* Confirmation modal */}
-      <Modal
+      <BookingConfirmModal
         isOpen={confirmOpen}
         onClose={() => { setConfirmOpen(false); setSelectedSlot(null) }}
-        title="Confirmer la réservation"
-      >
-        {selectedSlot && (
-          <div className="space-y-4">
-            {/* Recap */}
-            <div className="rounded-[14px] bg-bg p-4 space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm text-text-secondary">Terrain</span>
-                <span className="text-sm font-semibold">{courtName(selectedSlot.courtId)}</span>
-              </div>
-              <div className="border-t border-separator" />
-              <div className="flex justify-between">
-                <span className="text-sm text-text-secondary">Date</span>
-                <span className="text-sm font-semibold">
-                  {selectedDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </span>
-              </div>
-              <div className="border-t border-separator" />
-              <div className="flex justify-between">
-                <span className="text-sm text-text-secondary">Horaire</span>
-                <span className="text-sm font-semibold">
-                  {formatTime(selectedSlot.start)} – {formatTime(selectedSlot.end)}
-                </span>
-              </div>
-              <div className="border-t border-separator" />
-              <div className="flex justify-between">
-                <span className="text-sm text-text-secondary">Tarif</span>
-                <span className="text-sm font-semibold">
-                  {findPricingRule(pricingRules, selectedDate, selectedSlot.start)?.label || '—'}
-                </span>
-              </div>
-            </div>
-
-            {/* Price */}
-            <div className="bg-primary/5 rounded-[14px] p-4">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-medium text-text">Total session</span>
-                <span className="text-2xl font-bold text-primary">{selectedSlot.price.toFixed(2)}€</span>
-              </div>
-              <p className="text-xs text-text-secondary text-right">
-                {myShare.toFixed(2)}€ / joueur (4 joueurs)
-              </p>
-            </div>
-
-            {/* Payment choice */}
-            <div className="rounded-[14px] border border-separator p-4 space-y-3">
-              <p className="text-sm font-medium text-text">Paiement</p>
-              <div className="space-y-2">
-                {[
-                  { value: 'my_part', label: `Payer ma part (${myShare.toFixed(2)}€)`, ok: canPayPart },
-                  { value: 'full', label: `Payer la totalité (${selectedSlot.price.toFixed(2)}€)`, ok: canPayFull },
-                  { value: 'none', label: 'Payer plus tard', ok: true },
-                ].map(({ value, label, ok }) => (
-                  <button
-                    key={value}
-                    onClick={() => setPayChoice(value)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-[10px] text-left transition-all cursor-pointer ${
-                      payChoice === value
-                        ? 'bg-primary text-white'
-                        : 'bg-bg text-text hover:bg-primary/5'
-                    }`}
-                  >
-                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                      payChoice === value ? 'border-white' : 'border-text-tertiary'
-                    }`}>
-                      {payChoice === value && <div className="w-2 h-2 rounded-full bg-white" />}
-                    </div>
-                    <span className="text-sm font-medium">{label}</span>
-                    {!ok && value !== 'none' && (
-                      <span className={`text-[10px] ml-auto ${payChoice === value ? 'text-white/60' : 'text-danger'}`}>Solde insuffisant</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-text-tertiary">
-                Votre solde : <strong>{totalBalance.toFixed(2)}€</strong> · Bonus utilisé en priorité
-              </p>
-            </div>
-
-            <p className="text-xs text-text-tertiary text-center">
-              3 places seront disponibles pour inviter d'autres joueurs.
-            </p>
-
-            <div className="flex gap-3">
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => { setConfirmOpen(false); setSelectedSlot(null) }}
-              >
-                Annuler
-              </Button>
-              <Button
-                className="flex-1"
-                loading={creating}
-                onClick={handleConfirm}
-              >
-                <Check className="w-4 h-4 mr-1" />
-                {payChoice === 'full' && canPayFull ? 'Réserver et tout payer'
-                  : payChoice === 'my_part' && canPayPart ? `Réserver et payer ${myShare.toFixed(2)}€`
-                  : 'Réserver'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
+        selectedSlot={selectedSlot}
+        selectedDate={selectedDate}
+        pricingRules={pricingRules}
+        totalBalance={totalBalance}
+        payChoice={payChoice}
+        setPayChoice={setPayChoice}
+        creating={creating}
+        onConfirm={handleConfirm}
+      />
     </PageWrapper>
   )
 }

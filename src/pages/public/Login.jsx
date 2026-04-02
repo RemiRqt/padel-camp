@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { getRedirectAfterLogin } from '@/lib/permissions'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import toast from 'react-hot-toast'
@@ -18,7 +19,7 @@ export default function Login() {
     try {
       const { profile } = await signIn(email, password)
       toast.success('Connexion réussie')
-      navigate(profile?.role === 'admin' ? '/admin' : '/dashboard', { replace: true })
+      navigate(getRedirectAfterLogin(profile?.role), { replace: true })
     } catch (err) {
       const msg = err.message === 'Invalid login credentials'
         ? 'Email ou mot de passe incorrect'

@@ -349,3 +349,145 @@ export async function declineInvitation(playerId) {
     .eq('id', playerId)
   if (error) throw error
 }
+
+/**
+ * Update just the amount on a booking_player row
+ */
+export async function updatePlayerAmount(playerId, amount) {
+  const { error } = await supabase
+    .from('booking_players')
+    .update({ amount })
+    .eq('id', playerId)
+  if (error) throw error
+}
+
+/**
+ * Fetch tournaments and events that block courts on a given date
+ */
+export async function fetchDayBlockingEvents(date) {
+  const [tRes, eRes] = await Promise.all([
+    supabase.from('tournaments').select('name, start_time, end_time, level, category').eq('date', date).not('status', 'eq', 'cancelled'),
+    supabase.from('events').select('name, start_time, end_time').eq('date', date),
+  ])
+  return [
+    ...(tRes.data || []).map((t) => ({ ...t, type: 'tournament' })),
+    ...(eRes.data || []).map((e) => ({ ...e, type: 'event' })),
+  ]
+}
+
+/**
+ * Admin: fetch bookings with players for a specific date
+ */
+export async function fetchAdminDayBookings(date) {
+  const { data } = await supabase
+    .from('bookings')
+    .select('*, booking_players(*)')
+    .eq('date', date)
+    .eq('status', 'confirmed')
+    .order('start_time', { ascending: true })
+  return data || []
+}
+
+/**
+ * Admin: fetch booking players for a specific booking
+ */
+export async function fetchBookingPlayers(bookingId) {
+  const { data, error } = await supabase
+    .from('booking_players')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .order('created_at')
+  if (error) throw error
+  return data || []
+}
+
+/**
+ * Admin: fetch a single booking by id (with or without players)
+ */
+export async function fetchBookingById(bookingId, { withPlayers = false } = {}) {
+  const select = withPlayers ? '*, booking_players(*)' : '*'
+  const { data, error } = await supabase
+    .from('bookings')
+    .select(select)
+    .eq('id', bookingId)
+    .single()
+  if (error) throw error
+  return data
+}
+
+/**
+ * Admin: add or replace a player on a booking slot
+ */
+export async function adminUpdatePlayerSlot(slotId, updates) {
+  const { error } = await supabase
+    .from('booking_players')
+    .update(updates)
+    .eq('id', slotId)
+  if (error) throw error
+}
+
+/**
+ * Admin: insert a new booking player row
+ */
+export async function adminInsertPlayer(playerData) {
+  const { error } = await supabase
+    .from('booking_players')
+    .insert(playerData)
+  if (error) throw error
+}
+
+/**
+ * Admin: cancel a booking directly
+ */
+export async function adminCancelBooking(bookingId) {
+  const { error } = await supabase
+    .from('bookings')
+    .update({ status: 'cancelled', cancelled_by: 'admin' })
+    .eq('id', bookingId)
+  if (error) throw error
+}
+
+/**
+ * Admin: force-accept an invitation
+ */
+export async function adminAcceptInvitation(playerId) {
+  const { error } = await supabase
+    .from('booking_players')
+    .update({ invitation_status: 'accepted' })
+    .eq('id', playerId)
+  if (error) throw error
+}
+
+/**
+ * Admin: sell products (debit or external transaction)
+ */
+export async function adminSellProduct({ buyerId, amount, description, performedBy, productId, paymentMethod }) {
+  if (buyerId && paymentMethod === 'balance') {
+    const { error } = await supabase.rpc('debit_user', {
+      p_user_id: buyerId, p_amount: amount,
+      p_description: description,
+      p_performed_by: performedBy, p_type: 'debit_product', p_product_id: productId,
+    })
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('transactions').insert({
+      user_id: buyerId || null,
+      type: buyerId ? 'debit_product' : 'external_payment',
+      amount, description,
+      performed_by: performedBy, product_id: productId, payment_method: paymentMethod,
+    })
+    if (error) throw error
+  }
+}
+
+/**
+ * Fetch sales transactions for a given date
+ */
+export async function fetchDaySales(date) {
+  const { data } = await supabase
+    .from('transactions').select('*')
+    .in('type', ['debit_product', 'debit_session', 'external_payment'])
+    .gte('created_at', date + 'T00:00:00').lte('created_at', date + 'T23:59:59')
+    .order('created_at', { ascending: false }).limit(100)
+  return data || []
+}

@@ -257,3 +257,43 @@ export async function searchMembersForTournament(query) {
   if (error) throw error
   return data || []
 }
+
+/**
+ * Admin: create or update a tournament
+ */
+export async function saveTournament(id, tournamentData) {
+  if (id) {
+    const { error } = await supabase.from('tournaments').update(tournamentData).eq('id', id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('tournaments').insert(tournamentData)
+    if (error) throw error
+  }
+}
+
+/**
+ * Admin: delete a tournament
+ */
+export async function deleteTournament(id) {
+  const { error } = await supabase.from('tournaments').delete().eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Fetch all tournaments with registration counts (admin listing)
+ */
+export async function fetchTournamentsWithRegCounts() {
+  const { data, error } = await supabase
+    .from('tournaments')
+    .select('*, tournament_registrations(id, status)')
+    .order('date', { ascending: false })
+  if (error) throw error
+  const tourneys = data || []
+  const counts = {}
+  tourneys.forEach((t) => {
+    const regs = t.tournament_registrations || []
+    counts[t.id] = regs.filter((r) => r.status !== 'cancelled').length
+    delete t.tournament_registrations
+  })
+  return { tournaments: tourneys, regCounts: counts }
+}

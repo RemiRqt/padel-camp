@@ -1,17 +1,14 @@
 import { useEffect, useState, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
 import { useClub } from '@/hooks/useClub'
 import { generateSlots } from '@/utils/slots'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
-import Badge from '@/components/ui/Badge'
-import Button from '@/components/ui/Button'
-import Modal from '@/components/ui/Modal'
 import { formatTime, toDateString } from '@/utils/formatDate'
-import { cancelBooking } from '@/services/bookingService'
+import { cancelBooking, fetchAdminDayBookings, fetchDayBlockingEvents } from '@/services/bookingService'
+import BookingDetailModal from '@/components/admin/bookings/BookingDetailModal'
 import toast from 'react-hot-toast'
 import {
-  CalendarDays, Trash2, MapPin, Clock, ChevronLeft, ChevronRight, Trophy, Star
+  CalendarDays, ChevronLeft, ChevronRight, Trophy, Star
 } from 'lucide-react'
 
 const COURTS = [
@@ -19,12 +16,6 @@ const COURTS = [
   { id: 'terrain_2', label: 'Terrain 2', short: 'T2' },
   { id: 'terrain_3', label: 'Terrain 3', short: 'T3' },
 ]
-
-const PAY_BADGE = {
-  paid: { color: 'success', label: 'Payé' },
-  external: { color: 'primary', label: 'CB/Espèces' },
-  pending: { color: 'warning', label: 'En attente' },
-}
 
 export default function AdminBookings() {
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -41,17 +32,7 @@ export default function AdminBookings() {
   const [dayEvents, setDayEvents] = useState([])
 
   useEffect(() => {
-    async function fetchDayEvents() {
-      const [tRes, eRes] = await Promise.all([
-        supabase.from('tournaments').select('name, start_time, end_time, level, category').eq('date', dateStr).not('status', 'eq', 'cancelled'),
-        supabase.from('events').select('name, start_time, end_time').eq('date', dateStr),
-      ])
-      setDayEvents([
-        ...(tRes.data || []).map((t) => ({ ...t, type: 'tournament' })),
-        ...(eRes.data || []).map((e) => ({ ...e, type: 'event' })),
-      ])
-    }
-    fetchDayEvents()
+    fetchDayBlockingEvents(dateStr).then(setDayEvents).catch(() => setDayEvents([]))
   }, [dateStr])
 
   const getBlockingEvent = (slotStart, slotEnd) => {
@@ -63,19 +44,14 @@ export default function AdminBookings() {
     })
   }
 
-  const fetchBookings = async () => {
+  const fetchBookingsData = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('bookings')
-      .select('*, booking_players(*)')
-      .eq('date', dateStr)
-      .eq('status', 'confirmed')
-      .order('start_time', { ascending: true })
-    setBookings(data || [])
+    const data = await fetchAdminDayBookings(dateStr)
+    setBookings(data)
     setLoading(false)
   }
 
-  useEffect(() => { fetchBookings() }, [dateStr])
+  useEffect(() => { fetchBookingsData() }, [dateStr])
 
   const getBookingFor = (courtId, startTime) => {
     return bookings.find(
@@ -96,7 +72,7 @@ export default function AdminBookings() {
       await cancelBooking(selected.id, 'admin')
       toast.success('Réservation annulée')
       setDetailOpen(false)
-      fetchBookings()
+      fetchBookingsData()
     } catch (err) {
       toast.error(err.message)
     } finally {
@@ -125,15 +101,10 @@ export default function AdminBookings() {
             <CalendarDays className="w-5 h-5 text-primary" />
             <h1 className="text-2xl font-bold text-text">Réservations</h1>
           </div>
-
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => changeDay(-1)}
-              className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer"
-            >
+            <button onClick={() => changeDay(-1)} className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer">
               <ChevronLeft className="w-5 h-5 text-text-secondary" />
             </button>
-
             <button
               onClick={() => setSelectedDate(new Date())}
               className={`px-4 py-2 rounded-[10px] text-sm font-medium transition-all cursor-pointer ${
@@ -142,29 +113,21 @@ export default function AdminBookings() {
             >
               Aujourd'hui
             </button>
-
             <input
-              type="date"
-              value={dateStr}
+              type="date" value={dateStr}
               onChange={(e) => setSelectedDate(new Date(e.target.value + 'T00:00'))}
               className="px-3 py-2 rounded-[10px] bg-bg text-sm font-medium text-text border-0 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
             />
-
-            <button
-              onClick={() => changeDay(1)}
-              className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer"
-            >
+            <button onClick={() => changeDay(1)} className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer">
               <ChevronRight className="w-5 h-5 text-text-secondary" />
             </button>
           </div>
         </div>
 
-        {/* Day label */}
         <p className="text-sm text-text-secondary capitalize">{dayLabel}</p>
 
         {/* Grid: Horaires x 3 Terrains */}
         <Card className="!p-0 overflow-hidden">
-          {/* Header row */}
           <div className="grid grid-cols-[80px_1fr_1fr_1fr] lg:grid-cols-[100px_1fr_1fr_1fr] border-b border-separator bg-bg/50">
             <div className="p-3 text-xs font-semibold text-text-tertiary uppercase text-center">Horaire</div>
             {COURTS.map((court) => (
@@ -175,7 +138,6 @@ export default function AdminBookings() {
             ))}
           </div>
 
-          {/* Slot rows */}
           {loading ? (
             Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="grid grid-cols-[80px_1fr_1fr_1fr] lg:grid-cols-[100px_1fr_1fr_1fr] border-b border-separator last:border-0">
@@ -187,13 +149,10 @@ export default function AdminBookings() {
           ) : (
             slots.map((slot) => (
               <div key={slot.start} className="grid grid-cols-[80px_1fr_1fr_1fr] lg:grid-cols-[100px_1fr_1fr_1fr] border-b border-separator last:border-0">
-                {/* Time */}
                 <div className="p-2 flex flex-col items-center justify-center bg-bg/30">
                   <span className="text-xs font-semibold text-text">{formatTime(slot.start)}</span>
                   <span className="text-[10px] text-text-tertiary">{formatTime(slot.end)}</span>
                 </div>
-
-                {/* 3 courts */}
                 {COURTS.map((court) => {
                   const booking = getBookingFor(court.id, slot.start)
                   const blocking = getBlockingEvent(slot.start, slot.end)
@@ -272,112 +231,14 @@ export default function AdminBookings() {
         </div>
       </div>
 
-      {/* Detail modal */}
-      <Modal
+      <BookingDetailModal
         isOpen={detailOpen}
         onClose={() => setDetailOpen(false)}
-        title="Détail réservation"
-      >
-        {selected && (
-          <div className="space-y-4">
-            <div className="rounded-[14px] bg-bg p-4 space-y-2.5">
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                <span className="text-sm font-medium">
-                  {COURTS.find((c) => c.id === selected.court_id)?.label || selected.court_id}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
-                <span className="text-sm">
-                  {new Date(selected.date + 'T00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                  {' · '}{formatTime(selected.start_time)} – {formatTime(selected.end_time)}
-                </span>
-              </div>
-              <div className="flex justify-between pt-1 border-t border-separator">
-                <span className="text-sm text-text-secondary">Réservé par</span>
-                <span className="text-sm font-semibold">{selected.user_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm text-text-secondary">Prix total</span>
-                <span className="text-sm font-bold text-primary">{parseFloat(selected.price).toFixed(2)}€</span>
-              </div>
-            </div>
-
-            {/* Players */}
-            {players.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-text-secondary uppercase mb-2">
-                  Joueurs ({players.filter((p) => p.player_name !== 'Place disponible').length}/4)
-                </p>
-                <div className="space-y-1.5">
-                  {players.map((p) => {
-                    const isEmpty = p.player_name === 'Place disponible'
-                    const badge = PAY_BADGE[p.payment_status] || PAY_BADGE.pending
-                    return (
-                      <div key={p.id} className={`flex items-center justify-between py-2.5 px-3 rounded-[10px] ${isEmpty ? 'bg-bg/50 border border-dashed border-separator' : 'bg-bg'}`}>
-                        {isEmpty ? (
-                          <p className="text-sm text-text-tertiary">Place disponible</p>
-                        ) : (
-                          <>
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                <span className="text-xs font-bold text-primary">
-                                  {p.player_name.charAt(0).toUpperCase()}
-                                </span>
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium">{p.player_name}</p>
-                                <div className="flex items-center gap-1.5 mt-0.5">
-                                  <Badge color={p.user_id ? 'primary' : 'gray'}>
-                                    {p.user_id ? 'Membre' : 'Externe'}
-                                  </Badge>
-                                  <Badge color={badge.color}>{badge.label}</Badge>
-                                </div>
-                              </div>
-                            </div>
-                            <span className="text-sm font-semibold text-primary">{parseFloat(p.amount).toFixed(2)}€</span>
-                          </>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Payment summary */}
-            {players.length > 0 && (() => {
-              const paidAmount = players.reduce((s, p) => s + (p.payment_status === 'paid' || p.payment_status === 'external' ? parseFloat(p.amount) : 0), 0)
-              const totalAmount = parseFloat(selected.price)
-              const remaining = totalAmount - paidAmount
-              return (
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-[10px] bg-bg p-2.5">
-                    <p className="text-[10px] text-text-tertiary uppercase">Total</p>
-                    <p className="text-base font-bold text-primary">{totalAmount.toFixed(2)}€</p>
-                  </div>
-                  <div className="rounded-[10px] bg-success/10 p-2.5">
-                    <p className="text-[10px] text-text-tertiary uppercase">Payé</p>
-                    <p className="text-base font-bold text-success">{paidAmount.toFixed(2)}€</p>
-                  </div>
-                  <div className={`rounded-[10px] p-2.5 ${remaining > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
-                    <p className="text-[10px] text-text-tertiary uppercase">Reste</p>
-                    <p className={`text-base font-bold ${remaining > 0 ? 'text-warning' : 'text-success'}`}>{remaining.toFixed(2)}€</p>
-                  </div>
-                </div>
-              )
-            })()}
-
-            {selected.status === 'confirmed' && (
-              <Button variant="danger" className="w-full" loading={cancelling} onClick={handleAdminCancel}>
-                <Trash2 className="w-4 h-4 mr-1" />
-                Annuler (admin)
-              </Button>
-            )}
-          </div>
-        )}
-      </Modal>
+        booking={selected}
+        players={players}
+        cancelling={cancelling}
+        onCancel={handleAdminCancel}
+      />
     </PageWrapper>
   )
 }

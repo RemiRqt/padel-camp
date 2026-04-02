@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import { supabase } from '@/lib/supabase'
+import { fetchUserTransactionCount } from '@/services/transactionService'
+import { updateProfile } from '@/services/userService'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
@@ -34,13 +35,9 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user?.id) return
-    supabase
-      .from('transactions')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .then(({ count, error }) => {
-        if (!error) setTxCount(count || 0)
-      })
+    fetchUserTransactionCount(user.id)
+      .then((count) => setTxCount(count))
+      .catch((err) => console.error('[Profile] txCount error:', err))
   }, [user?.id])
 
   const update = (field) => (e) =>
@@ -54,15 +51,11 @@ export default function Profile() {
     }
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          display_name: form.display_name.trim(),
-          phone: form.phone.trim() || null,
-          license_number: form.license_number.trim() || null,
-        })
-        .eq('id', user.id)
-      if (error) throw error
+      await updateProfile(user.id, {
+        display_name: form.display_name.trim(),
+        phone: form.phone.trim() || null,
+        license_number: form.license_number.trim() || null,
+      })
       await fetchProfile(user.id)
       toast.success('Profil mis à jour')
     } catch (err) {

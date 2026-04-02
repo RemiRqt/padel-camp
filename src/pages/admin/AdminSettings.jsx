@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { updateClubConfig, savePricingRule, deletePricingRule, fetchPricingRules } from '@/services/clubService'
 import { useClub } from '@/hooks/useClub'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
@@ -41,23 +41,19 @@ export default function AdminSettings() {
     if (!config) return
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('club_config')
-        .update({
-          name: config.name,
-          address: config.address,
-          phone: config.phone,
-          description: config.description,
-          instagram_url: config.instagram_url,
-          courts_count: config.courts_count,
-          court_names: config.court_names,
-          slot_duration: config.slot_duration,
-          open_time: config.open_time,
-          close_time: config.close_time,
-          open_days: config.open_days,
-        })
-        .eq('id', config.id)
-      if (error) throw error
+      await updateClubConfig(config.id, {
+        name: config.name,
+        address: config.address,
+        phone: config.phone,
+        description: config.description,
+        instagram_url: config.instagram_url,
+        courts_count: config.courts_count,
+        court_names: config.court_names,
+        slot_duration: config.slot_duration,
+        open_time: config.open_time,
+        close_time: config.close_time,
+        open_days: config.open_days,
+      })
       toast.success('Configuration sauvegardée')
     } catch (err) {
       toast.error(err.message)
@@ -129,17 +125,11 @@ export default function AdminSettings() {
         days: ruleForm.days,
         price_per_slot: parseFloat(ruleForm.price_per_slot),
       }
-      if (editingRule) {
-        const { error } = await supabase.from('pricing_rules').update(data).eq('id', editingRule.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase.from('pricing_rules').insert(data)
-        if (error) throw error
-      }
+      await savePricingRule(editingRule?.id, data)
       toast.success(editingRule ? 'Tarif mis à jour' : 'Tarif créé')
       setPriceModal(false)
-      const { data: refreshed } = await supabase.from('pricing_rules').select('*').eq('is_active', true).order('start_time')
-      setPricingRules(refreshed || [])
+      const refreshed = await fetchPricingRules(true)
+      setPricingRules(refreshed)
     } catch (err) { toast.error(err.message) }
     finally { setRuleSaving(false) }
   }
@@ -151,12 +141,11 @@ export default function AdminSettings() {
       confirmLabel: 'Supprimer',
       variant: 'danger',
       onConfirm: async () => {
-        const { error } = await supabase.from('pricing_rules').delete().eq('id', rule.id)
-        if (error) toast.error(error.message)
-        else {
+        try {
+          await deletePricingRule(rule.id)
           toast.success('Supprimé')
           setPricingRules((prev) => prev.filter((r) => r.id !== rule.id))
-        }
+        } catch (err) { toast.error(err.message) }
       },
     })
   }
