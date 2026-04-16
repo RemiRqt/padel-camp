@@ -1,5 +1,6 @@
 import Button from '@/components/ui/Button'
 import { Search, Wallet, CreditCard, Banknote } from 'lucide-react'
+import { calculateTva, getProductTvaRate, formatTvaRate, groupTvaByRate } from '@/utils/tva'
 
 export default function POSSaleModal({
   cart, cartTotal,
@@ -8,12 +9,29 @@ export default function POSSaleModal({
   salePayment, setSalePayment,
   submitting, onSubmit,
 }) {
+  const tvaBreakdown = groupTvaByRate(
+    cart.map((c) => {
+      const ttc = Number(c.product.price) * c.qty
+      const rate = getProductTvaRate(c.product)
+      const { ht, tva } = calculateTva(ttc, rate)
+      return { amount: ttc, amount_ht: ht, amount_tva: tva, tva_rate: rate }
+    })
+  )
+  const totalTva = tvaBreakdown.reduce((s, b) => s + b.tva, 0)
+
   return (
     <div className="space-y-4">
       <div className="bg-bg rounded-[12px] p-3">
-        <p className="text-sm text-text-secondary">Total</p>
+        <p className="text-sm text-text-secondary">Total TTC</p>
         <p className="text-2xl font-bold text-primary">{cartTotal.toFixed(2)}€</p>
-        <p className="text-xs text-text-tertiary">{cart.map((c) => `${c.product.name} x${c.qty}`).join(', ')}</p>
+        {totalTva > 0 && (
+          <p className="text-xs text-text-tertiary mt-1">
+            {tvaBreakdown.length === 1
+              ? `dont TVA ${formatTvaRate(tvaBreakdown[0].rate)} : ${tvaBreakdown[0].tva.toFixed(2)}€`
+              : `dont TVA : ${tvaBreakdown.map((b) => `${formatTvaRate(b.rate)} ${b.tva.toFixed(2)}€`).join(' · ')}`}
+          </p>
+        )}
+        <p className="text-xs text-text-tertiary mt-1">{cart.map((c) => `${c.product.name} x${c.qty}`).join(', ')}</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-text mb-1.5">Membre (optionnel)</label>

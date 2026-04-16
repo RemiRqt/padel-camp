@@ -2,20 +2,22 @@ import { supabase } from '@/lib/supabase'
 
 export async function fetchCategoriesAndProducts() {
   const [cRes, pRes] = await Promise.all([
-    supabase.from('product_categories').select('id, name, sort_order, is_active').order('sort_order'),
-    supabase.from('products').select('id, name, price, category_id, description, is_active, category:product_categories(name)').order('name'),
+    supabase.from('product_categories').select('id, name, sort_order, is_active, tva_rate').order('sort_order'),
+    supabase.from('products').select('id, name, price, category_id, description, is_active, tva_rate, category:product_categories(name, tva_rate)').order('name'),
   ])
   if (cRes.error) throw cRes.error
   if (pRes.error) throw pRes.error
   return { categories: cRes.data || [], products: pRes.data || [] }
 }
 
-export async function saveCategory(id, name, sortOrder) {
+export async function saveCategory(id, name, sortOrder, tvaRate) {
+  const payload = { name }
+  if (tvaRate != null && tvaRate !== '') payload.tva_rate = Number(tvaRate)
   if (id) {
-    const { error } = await supabase.from('product_categories').update({ name }).eq('id', id)
+    const { error } = await supabase.from('product_categories').update(payload).eq('id', id)
     if (error) throw error
   } else {
-    const { error } = await supabase.from('product_categories').insert({ name, sort_order: sortOrder })
+    const { error } = await supabase.from('product_categories').insert({ ...payload, sort_order: sortOrder })
     if (error) throw error
   }
 }
@@ -50,8 +52,8 @@ export async function toggleProduct(id, isActive) {
  */
 export async function fetchActiveCategoriesAndProducts() {
   const [cRes, pRes] = await Promise.all([
-    supabase.from('product_categories').select('*').eq('is_active', true).order('sort_order'),
-    supabase.from('products').select('*, category:product_categories(name)').eq('is_active', true).order('name'),
+    supabase.from('product_categories').select('id, name, sort_order, is_active, tva_rate').eq('is_active', true).order('sort_order'),
+    supabase.from('products').select('*, category:product_categories(name, tva_rate)').eq('is_active', true).order('name'),
   ])
   if (cRes.error) throw cRes.error
   if (pRes.error) throw pRes.error

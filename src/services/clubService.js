@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 export async function fetchClubConfig() {
   const { data, error } = await supabase
     .from('club_config')
-    .select('id, name, address, phone, description, instagram_url, courts_count, court_names, slot_duration, open_time, close_time, open_days')
+    .select('id, name, address, phone, description, instagram_url, courts_count, court_names, slot_duration, open_time, close_time, open_days, tva_rate_session')
     .single()
   if (error) throw error
   return data

@@ -53,6 +53,7 @@ export default function AdminSettings() {
         open_time: config.open_time,
         close_time: config.close_time,
         open_days: config.open_days,
+        tva_rate_session: config.tva_rate_session != null ? Number(config.tva_rate_session) : 20,
       })
       toast.success('Configuration sauvegardée')
     } catch (err) {
@@ -240,6 +241,26 @@ export default function AdminSettings() {
               ))}
             </div>
           </div>
+        </Card>
+
+        {/* TVA sessions */}
+        <Card>
+          <div className="flex items-center gap-2 mb-4">
+            <Euro className="w-4 h-4 text-primary" />
+            <h3 className="font-semibold text-text">TVA sessions (location terrain)</h3>
+          </div>
+          <Input
+            label="Taux TVA (%)"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={config.tva_rate_session != null ? String(config.tva_rate_session) : '20'}
+            onChange={(e) => updateConfig('tva_rate_session', e.target.value)}
+          />
+          <p className="text-xs text-text-tertiary mt-2">
+            Appliqué à toutes les transactions de type <em>debit_session</em>. En France, la location de terrain est taxée à 20 %.
+          </p>
         </Card>
 
         {/* Save config */}

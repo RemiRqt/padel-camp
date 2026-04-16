@@ -12,6 +12,7 @@ import toast from 'react-hot-toast'
 import { Package, Plus, Pencil, Trash2, FolderOpen } from 'lucide-react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import useConfirm from '@/hooks/useConfirm'
+import { getProductTvaRate, formatTvaRate, DEFAULT_TVA_RATE } from '@/utils/tva'
 
 export default function AdminProducts() {
   const { confirmProps, askConfirm } = useConfirm()
@@ -24,11 +25,12 @@ export default function AdminProducts() {
   const [catModalOpen, setCatModalOpen] = useState(false)
   const [editingCat, setEditingCat] = useState(null)
   const [catName, setCatName] = useState('')
+  const [catTva, setCatTva] = useState('')
 
   // Product modal
   const [prodModalOpen, setProdModalOpen] = useState(false)
   const [editingProd, setEditingProd] = useState(null)
-  const [prodForm, setProdForm] = useState({ name: '', price: '', category_id: '', description: '' })
+  const [prodForm, setProdForm] = useState({ name: '', price: '', category_id: '', description: '', tva_rate: '' })
   const [saving, setSaving] = useState(false)
 
   const fetchAll = async () => {
@@ -56,7 +58,9 @@ export default function AdminProducts() {
     if (!catName.trim()) { toast.error('Nom requis'); return }
     setSaving(true)
     try {
-      await saveCategory(editingCat?.id, catName.trim(), categories.length)
+      const tva = catTva === '' ? DEFAULT_TVA_RATE : parseFloat(catTva)
+      if (Number.isNaN(tva) || tva < 0 || tva > 100) { toast.error('Taux TVA invalide'); setSaving(false); return }
+      await saveCategory(editingCat?.id, catName.trim(), categories.length, tva)
       toast.success(editingCat ? 'Catégorie mise à jour' : 'Catégorie créée')
       setCatModalOpen(false)
       fetchAll()
@@ -84,13 +88,19 @@ export default function AdminProducts() {
   // Product CRUD
   const openCreateProd = () => {
     setEditingProd(null)
-    setProdForm({ name: '', price: '', category_id: activeTab || categories[0]?.id || '', description: '' })
+    setProdForm({ name: '', price: '', category_id: activeTab || categories[0]?.id || '', description: '', tva_rate: '' })
     setProdModalOpen(true)
   }
 
   const openEditProd = (p) => {
     setEditingProd(p)
-    setProdForm({ name: p.name, price: p.price.toString(), category_id: p.category_id, description: p.description || '' })
+    setProdForm({
+      name: p.name,
+      price: p.price.toString(),
+      category_id: p.category_id,
+      description: p.description || '',
+      tva_rate: p.tva_rate != null ? String(p.tva_rate) : '',
+    })
     setProdModalOpen(true)
   }
 
@@ -101,11 +111,18 @@ export default function AdminProducts() {
     }
     setSaving(true)
     try {
+      let tvaOverride = null
+      if (prodForm.tva_rate !== '') {
+        const n = parseFloat(prodForm.tva_rate)
+        if (Number.isNaN(n) || n < 0 || n > 100) { toast.error('Taux TVA invalide'); setSaving(false); return }
+        tvaOverride = n
+      }
       const data = {
         name: prodForm.name.trim(),
         price: parseFloat(prodForm.price),
         category_id: prodForm.category_id,
         description: prodForm.description.trim() || null,
+        tva_rate: tvaOverride,
       }
       await saveProduct(editingProd?.id, data)
       toast.success(editingProd ? 'Article mis à jour' : 'Article créé')
@@ -143,13 +160,15 @@ export default function AdminProducts() {
   const exportCols = [
     { key: 'name', label: 'Produit' },
     { key: 'category', label: 'Catégorie' },
-    { key: 'price', label: 'Prix' },
+    { key: 'price', label: 'Prix TTC' },
+    { key: 'tva', label: 'TVA' },
     { key: 'active', label: 'Actif' },
   ]
   const exportRows = filteredProducts.map((p) => ({
     name: p.name,
     category: p.category?.name || '',
     price: parseFloat(p.price).toFixed(2) + '€',
+    tva: formatTvaRate(getProductTvaRate(p)) + (p.tva_rate == null ? ' (cat.)' : ''),
     active: p.is_active ? 'Oui' : 'Non',
   }))
 
@@ -167,7 +186,7 @@ export default function AdminProducts() {
               onExcel={() => exportExcel(exportRows, exportCols, 'produits')}
               onPDF={() => exportPDF(exportRows, exportCols, 'produits', 'Padel Camp — Produits')}
             />
-            <Button size="sm" variant="ghost" onClick={() => { setEditingCat(null); setCatName(''); setCatModalOpen(true) }}>
+            <Button size="sm" variant="ghost" onClick={() => { setEditingCat(null); setCatName(''); setCatTva(''); setCatModalOpen(true) }}>
               <FolderOpen className="w-4 h-4 mr-1" />Catégorie
             </Button>
             <Button size="sm" onClick={openCreateProd}>
@@ -199,7 +218,7 @@ export default function AdminProducts() {
                   {cat.name} ({count})
                 </button>
                 <button
-                  onClick={() => { setEditingCat(cat); setCatName(cat.name); setCatModalOpen(true) }}
+                  onClick={() => { setEditingCat(cat); setCatName(cat.name); setCatTva(cat.tva_rate != null ? String(cat.tva_rate) : ''); setCatModalOpen(true) }}
                   className="p-1 rounded hover:bg-bg cursor-pointer"
                 >
                   <Pencil className="w-3 h-3 text-text-tertiary" />
@@ -229,7 +248,10 @@ export default function AdminProducts() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-text truncate">{p.name}</p>
-                    <p className="text-xs text-text-secondary">{p.category?.name}</p>
+                    <p className="text-xs text-text-secondary">
+                      {p.category?.name}
+                      <span className="text-text-tertiary"> · TVA {formatTvaRate(getProductTvaRate(p))}{p.tva_rate == null ? ' (cat.)' : ''}</span>
+                    </p>
                   </div>
                   <p className="text-sm font-bold text-primary mr-1">{parseFloat(p.price).toFixed(2)}€</p>
                   <button onClick={() => toggleProd(p)} className="cursor-pointer">
@@ -254,6 +276,16 @@ export default function AdminProducts() {
       <Modal isOpen={catModalOpen} onClose={() => setCatModalOpen(false)} title={editingCat ? 'Modifier catégorie' : 'Nouvelle catégorie'}>
         <div className="space-y-4">
           <Input label="Nom" value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Boissons, Location..." />
+          <Input
+            label="Taux TVA (%)"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={catTva}
+            onChange={(e) => setCatTva(e.target.value)}
+            placeholder={`${DEFAULT_TVA_RATE} par défaut`}
+          />
           <div className="flex gap-2">
             {editingCat && (
               <Button variant="danger" className="flex-1" onClick={() => { setCatModalOpen(false); deleteCat(editingCat) }}>
@@ -271,7 +303,7 @@ export default function AdminProducts() {
       <Modal isOpen={prodModalOpen} onClose={() => setProdModalOpen(false)} title={editingProd ? 'Modifier article' : 'Nouvel article'}>
         <div className="space-y-4">
           <Input label="Nom" value={prodForm.name} onChange={(e) => setProdForm({ ...prodForm, name: e.target.value })} />
-          <Input label="Prix (€)" type="number" min="0" step="0.01" value={prodForm.price} onChange={(e) => setProdForm({ ...prodForm, price: e.target.value })} />
+          <Input label="Prix TTC (€)" type="number" min="0" step="0.01" value={prodForm.price} onChange={(e) => setProdForm({ ...prodForm, price: e.target.value })} />
           <div>
             <label className="block text-sm font-medium text-text mb-1.5">Catégorie</label>
             <select
@@ -284,6 +316,20 @@ export default function AdminProducts() {
             </select>
           </div>
           <Input label="Description (optionnel)" value={prodForm.description} onChange={(e) => setProdForm({ ...prodForm, description: e.target.value })} />
+          <Input
+            label="TVA (%) — optionnel"
+            type="number"
+            min="0"
+            max="100"
+            step="0.1"
+            value={prodForm.tva_rate}
+            onChange={(e) => setProdForm({ ...prodForm, tva_rate: e.target.value })}
+            placeholder={(() => {
+              const cat = categories.find((c) => c.id === prodForm.category_id)
+              const catRate = cat?.tva_rate ?? DEFAULT_TVA_RATE
+              return `Hérite catégorie (${formatTvaRate(catRate)})`
+            })()}
+          />
           <Button className="w-full" loading={saving} onClick={saveProd}>
             {editingProd ? 'Enregistrer' : 'Créer'}
           </Button>
