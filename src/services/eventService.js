@@ -29,7 +29,7 @@ export async function fetchAllEvents() {
 export async function fetchAllEventsAdmin() {
   const { data, error } = await supabase
     .from('events')
-    .select('*')
+    .select('id, name, description, date, start_time, end_time, image_url, is_public, created_at')
     .order('date')
   if (error) throw error
   return data || []

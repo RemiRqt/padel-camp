@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  MapPin, Phone, Clock, Instagram, Euro, Trophy, Calendar,
+  MapPin, Phone, Clock, ExternalLink, Euro, Trophy, Calendar,
   ChevronRight, Star, Users
 } from 'lucide-react'
 import { useAuth } from '@/context/AuthContext'
@@ -130,7 +130,7 @@ export default function Landing() {
             <div className="border-t border-separator" />
             <a href={clubInsta} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 group">
               <div className="w-9 h-9 rounded-[10px] bg-gradient-to-br from-purple-500/10 to-pink-500/10 flex items-center justify-center shrink-0">
-                <Instagram className="w-4 h-4 text-purple-600" />
+                <ExternalLink className="w-4 h-4 text-purple-600" />
               </div>
               <p className="text-sm font-medium text-primary group-hover:underline">@{instaHandle}</p>
               <ChevronRight className="w-4 h-4 text-text-tertiary ml-auto" />

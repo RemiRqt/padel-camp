@@ -79,7 +79,7 @@ export default function Dashboard() {
       onConfirm: async () => {
         setSubmitting(true)
         try {
-          await declineInvitation(invitation.id)
+          await declineInvitation(invitation.id, user.id)
           toast.success('Invitation refusée')
           setRespondingTo(null)
           await fetchInvitations()

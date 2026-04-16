@@ -93,15 +93,20 @@ export async function createBooking({ userId, userName, courtId, date, startTime
   return booking
 }
 
-export async function cancelBooking(bookingId, cancelledBy = 'user') {
-  // User cancellation: only allowed 24h+ before the booking
+export async function cancelBooking(bookingId, cancelledBy = 'user', userId = null) {
+  // User cancellation: verify ownership and 24h window
   if (cancelledBy === 'user') {
     const { data: booking, error: fetchErr } = await supabase
       .from('bookings')
-      .select('date, start_time')
+      .select('date, start_time, user_id')
       .eq('id', bookingId)
       .single()
     if (fetchErr) throw fetchErr
+
+    // Ownership check — the requesting user must own the booking
+    if (userId && booking.user_id !== userId) {
+      throw new Error('Vous ne pouvez pas annuler la réservation d\'un autre membre.')
+    }
 
     const bookingStart = new Date(`${booking.date}T${booking.start_time}`)
     const hoursUntil = (bookingStart - new Date()) / (1000 * 60 * 60)
@@ -123,14 +128,14 @@ export async function cancelBooking(bookingId, cancelledBy = 'user') {
 export async function getBookingWithPlayers(bookingId) {
   const { data: booking, error: bErr } = await supabase
     .from('bookings')
-    .select('*')
+    .select('id, user_id, user_name, court_id, date, start_time, end_time, price, status, payment_status, cancelled_by, created_at')
     .eq('id', bookingId)
     .single()
   if (bErr) throw bErr
 
   const { data: players, error: pErr } = await supabase
     .from('booking_players')
-    .select('*')
+    .select('id, booking_id, user_id, player_name, parts, payment_method, amount, payment_status, invitation_status, created_at')
     .eq('booking_id', bookingId)
     .order('created_at')
   if (pErr) throw pErr
@@ -255,7 +260,7 @@ export async function searchMembers(query) {
   if (!query || query.length < 2) return []
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, email, avatar_url, balance, balance_bonus')
+    .select('id, display_name, email, avatar_url')
     .ilike('display_name', `%${query}%`)
     .limit(5)
   if (error) throw error
@@ -292,6 +297,11 @@ export async function acceptInvitation({ playerId, paymentMethod, userId }) {
     .eq('id', playerId)
     .single()
   if (pErr) throw pErr
+
+  // Ownership check — the authenticated user must be the invited player
+  if (player.user_id !== userId) {
+    throw new Error('Vous ne pouvez pas accepter une invitation qui ne vous est pas destinée.')
+  }
 
   const amount = parseFloat(player.amount)
 
@@ -335,7 +345,19 @@ export async function acceptInvitation({ playerId, paymentMethod, userId }) {
 /**
  * Decline an invitation — resets the slot to "Place disponible"
  */
-export async function declineInvitation(playerId) {
+export async function declineInvitation(playerId, userId) {
+  // Verify the slot belongs to this user before resetting it
+  const { data: slot, error: fetchErr } = await supabase
+    .from('booking_players')
+    .select('user_id')
+    .eq('id', playerId)
+    .single()
+  if (fetchErr) throw fetchErr
+
+  if (slot.user_id !== userId) {
+    throw new Error('Vous ne pouvez pas refuser une invitation qui ne vous est pas destinée.')
+  }
+
   const { error } = await supabase
     .from('booking_players')
     .update({
@@ -394,7 +416,7 @@ export async function fetchAdminDayBookings(date) {
 export async function fetchBookingPlayers(bookingId) {
   const { data, error } = await supabase
     .from('booking_players')
-    .select('*')
+    .select('id, booking_id, user_id, player_name, parts, payment_method, amount, payment_status, invitation_status, created_at')
     .eq('booking_id', bookingId)
     .order('created_at')
   if (error) throw error
@@ -485,7 +507,7 @@ export async function adminSellProduct({ buyerId, amount, description, performed
  */
 export async function fetchDaySales(date) {
   const { data } = await supabase
-    .from('transactions').select('*')
+    .from('transactions').select('id, user_id, type, amount, description, payment_method, created_at, booking_id, product_id')
     .in('type', ['debit_product', 'debit_session', 'external_payment'])
     .gte('created_at', date + 'T00:00:00').lte('created_at', date + 'T23:59:59')
     .order('created_at', { ascending: false }).limit(100)

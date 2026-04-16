@@ -39,12 +39,32 @@ export async function addFriend(userId, friendId) {
   if (error) throw error
 }
 
-export async function acceptFriend(friendRowId) {
+export async function acceptFriend(friendRowId, userId) {
+  // Only the recipient (friend_id) can accept an invitation
+  const { data: row, error: fetchErr } = await supabase
+    .from('friends')
+    .select('friend_id')
+    .eq('id', friendRowId)
+    .single()
+  if (fetchErr) throw fetchErr
+  if (row.friend_id !== userId) {
+    throw new Error('Vous ne pouvez pas accepter cette invitation.')
+  }
   const { error } = await supabase.from('friends').update({ status: 'accepted' }).eq('id', friendRowId)
   if (error) throw error
 }
 
-export async function declineFriend(friendRowId) {
+export async function declineFriend(friendRowId, userId) {
+  // Only the recipient (friend_id) can decline/delete an invitation
+  const { data: row, error: fetchErr } = await supabase
+    .from('friends')
+    .select('friend_id')
+    .eq('id', friendRowId)
+    .single()
+  if (fetchErr) throw fetchErr
+  if (row.friend_id !== userId) {
+    throw new Error('Vous ne pouvez pas refuser cette invitation.')
+  }
   const { error } = await supabase.from('friends').delete().eq('id', friendRowId)
   if (error) throw error
 }

@@ -20,7 +20,8 @@ export async function fetchUserDashboard(userId) {
       .from('bookings')
       .select('id, date, status')
       .eq('user_id', userId)
-      .eq('status', 'confirmed'),
+      .eq('status', 'confirmed')
+      .limit(500),
     supabase
       .from('transactions')
       .select('id', { count: 'exact', head: true })

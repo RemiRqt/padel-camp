@@ -11,7 +11,7 @@ export function AuthProvider({ children }) {
   const fetchProfile = useCallback(async (userId) => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, display_name, email, phone, role, balance, balance_bonus, license_number, avatar_url, created_at')
       .eq('id', userId)
       .single()
 
@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
         await new Promise((r) => setTimeout(r, 1500))
         const retry = await supabase
           .from('profiles')
-          .select('*')
+          .select('id, display_name, email, phone, role, balance, balance_bonus, license_number, avatar_url, created_at')
           .eq('id', userId)
           .single()
         if (!retry.error && retry.data) {
@@ -57,14 +57,14 @@ export function AuthProvider({ children }) {
 
     init()
 
-    // Listen for sign out and token refresh only
+    // Listen for auth events to keep session in sync
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         setUser(null)
         setProfile(null)
         setLoading(false)
       }
-      if (event === 'TOKEN_REFRESHED' && session?.user) {
+      if ((event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') && session?.user) {
         setUser(session.user)
       }
     })

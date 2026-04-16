@@ -51,7 +51,7 @@ export default function MyTournaments() {
   const handleAccept = async (regId) => {
     setActionLoading(regId)
     try {
-      await acceptPartnerInvite(regId)
+      await acceptPartnerInvite(regId, user.id)
       toast.success('Invitation acceptée ! En attente de validation admin.')
       loadData()
     } catch (err) { toast.error(err.message) }
@@ -65,7 +65,7 @@ export default function MyTournaments() {
       onConfirm: async () => {
         setActionLoading(regId)
         try {
-          await declinePartnerInvite(regId)
+          await declinePartnerInvite(regId, user.id)
           toast.success('Invitation refusée')
           loadData()
         } catch (err) { toast.error(err.message) }
@@ -77,7 +77,7 @@ export default function MyTournaments() {
   const handleConfirm = async (reg) => {
     setActionLoading(reg.id)
     try {
-      const result = await confirmParticipation(reg.id, myPlayerNumber(reg))
+      const result = await confirmParticipation(reg.id, myPlayerNumber(reg), user.id)
       if (result.status === 'confirmed') {
         toast.success('Participation confirmée pour la paire !')
       } else {

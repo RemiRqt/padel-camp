@@ -45,10 +45,19 @@ export async function searchMembers(query, excludeId = null) {
   return data || []
 }
 
+// Whitelist of fields a user can update on their own profile
+const ALLOWED_PROFILE_FIELDS = ['display_name', 'phone', 'license_number', 'avatar_url']
+
 export async function updateProfile(userId, updates) {
+  const safeUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([key]) => ALLOWED_PROFILE_FIELDS.includes(key))
+  )
+  if (Object.keys(safeUpdates).length === 0) {
+    throw new Error('Aucun champ valide à mettre à jour.')
+  }
   const { error } = await supabase
     .from('profiles')
-    .update(updates)
+    .update(safeUpdates)
     .eq('id', userId)
   if (error) throw error
 }

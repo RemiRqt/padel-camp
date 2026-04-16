@@ -163,7 +163,7 @@ export default function BookingConfirm() {
       confirmLabel: 'Annuler la réservation', variant: 'danger',
       onConfirm: async () => {
         setCancelling(true)
-        try { await cancelBooking(id, 'user'); toast.success('Réservation annulée'); navigate('/dashboard') }
+        try { await cancelBooking(id, 'user', user.id); toast.success('Réservation annulée'); navigate('/dashboard') }
         catch (err) { toast.error(err.message) }
         finally { setCancelling(false) }
       },

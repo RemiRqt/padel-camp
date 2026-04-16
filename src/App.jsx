@@ -35,6 +35,7 @@ const AdminPOS = lazy(() => import('@/pages/admin/AdminPOS'))
 const AdminFormulas = lazy(() => import('@/pages/admin/AdminFormulas'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
 const AdminTournaments = lazy(() => import('@/pages/admin/AdminTournaments'))
+const AdminFinancialExport = lazy(() => import('@/pages/admin/AdminFinancialExport'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 export default function App() {
@@ -86,6 +87,7 @@ export default function App() {
             <Route path="/admin/formulas" element={<AdminFormulas />} />
             <Route path="/admin/tournaments" element={<AdminTournaments />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
+            <Route path="/admin/financial-export" element={<AdminFinancialExport />} />
           </Route>
 
           {/* 404 */}

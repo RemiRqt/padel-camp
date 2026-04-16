@@ -12,9 +12,9 @@ export function useClub() {
     async function fetch() {
       try {
         const [configRes, pricingRes, formulasRes] = await Promise.all([
-          supabase.from('club_config').select('*').single(),
-          supabase.from('pricing_rules').select('*').eq('is_active', true).order('start_time'),
-          supabase.from('recharge_formulas').select('*').eq('is_active', true).order('amount_paid'),
+          supabase.from('club_config').select('id, name, address, phone, opening_time, closing_time, court_count, slot_duration, cancellation_hours, instagram_url').single(),
+          supabase.from('pricing_rules').select('id, name, start_time, end_time, price, is_active').eq('is_active', true).order('start_time'),
+          supabase.from('recharge_formulas').select('id, amount_paid, amount_credited, bonus_amount, label, is_active').eq('is_active', true).order('amount_paid'),
         ])
         if (configRes.error || pricingRes.error || formulasRes.error) {
           setError(true)

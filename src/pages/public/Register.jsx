@@ -23,8 +23,8 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (form.password.length < 6) {
-      toast.error('Le mot de passe doit contenir au moins 6 caractères')
+    if (form.password.length < 8) {
+      toast.error('Le mot de passe doit contenir au moins 8 caractères')
       return
     }
     if (form.password !== form.confirmPassword) {
@@ -93,7 +93,7 @@ export default function Register() {
             name="password"
             label="Mot de passe"
             type="password"
-            placeholder="6 caractères minimum"
+            placeholder="8 caractères minimum"
             value={form.password}
             onChange={update('password')}
             required

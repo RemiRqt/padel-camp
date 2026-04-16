@@ -16,7 +16,7 @@ export function useBookings(date) {
     setError(false)
     const { data, error: err } = await supabase
       .from('bookings')
-      .select('*')
+      .select('id, user_id, user_name, court_id, date, start_time, end_time, price, status, payment_status')
       .eq('date', dateStr)
       .eq('status', 'confirmed')
     if (err) setError(true)
@@ -60,7 +60,7 @@ export function useUserBookings(userId) {
         const [ownRes, invitedRes] = await Promise.all([
           supabase
             .from('bookings')
-            .select('*')
+            .select('id, user_id, user_name, court_id, date, start_time, end_time, price, status, payment_status')
             .eq('user_id', userId)
             .eq('status', 'confirmed')
             .gte('date', today)

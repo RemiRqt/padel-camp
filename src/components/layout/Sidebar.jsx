@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
   Home, CalendarDays, Trophy, User, Menu, Heart,
-  LayoutDashboard, Users, Settings, ShoppingCart, Package, CreditCard, Ticket, Calendar
+  LayoutDashboard, Users, Settings, ShoppingCart, Package, CreditCard, Ticket, Calendar, FileBarChart
 } from 'lucide-react'
 
 const userLinks = [
@@ -23,8 +23,10 @@ const adminLinks = [
   { to: '/admin/products', icon: Package, label: 'Articles' },
   { to: '/admin/tournaments', icon: Trophy, label: 'Tournois' },
   { to: '/admin/formulas', icon: CreditCard, label: 'Formules' },
+  { to: '/admin/financial-export', icon: FileBarChart, label: 'Rapport financier' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ]
+
 
 function SidebarLink({ to, icon: Icon, label }) {
   return (

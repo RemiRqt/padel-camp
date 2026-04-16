@@ -90,14 +90,14 @@ export default function Social() {
   }
   const handleAccept = async (friendRow) => {
     try {
-      await acceptFriend(friendRow.id)
+      await acceptFriend(friendRow.id, user.id)
       toast.success('Ami ajouté !')
       fetchAll()
     } catch (err) { toast.error(err.message) }
   }
   const handleDecline = async (friendRow) => {
     try {
-      await declineFriend(friendRow.id)
+      await declineFriend(friendRow.id, user.id)
       toast.success('Invitation refusée')
       fetchAll()
     } catch (err) { toast.error(err.message) }

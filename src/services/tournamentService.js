@@ -24,7 +24,7 @@ export async function fetchTournaments(statusFilter = null) {
 export async function fetchTournamentById(id) {
   const { data, error } = await supabase
     .from('tournaments')
-    .select('*')
+    .select('id, name, date, start_time, end_time, level, category, max_teams, price, status, description, image_url, created_at')
     .eq('id', id)
     .single()
   if (error) throw error
@@ -34,7 +34,7 @@ export async function fetchTournamentById(id) {
 export async function fetchRegistrations(tournamentId) {
   const { data, error } = await supabase
     .from('tournament_registrations')
-    .select('*')
+    .select('id, tournament_id, player1_uid, player1_name, player1_license, player2_uid, player2_name, player2_license, player2_is_external, status, admin_validated, player1_confirmed, player2_confirmed, position, created_at')
     .eq('tournament_id', tournamentId)
     .order('created_at')
   if (error) throw error
@@ -105,12 +105,23 @@ export async function registerPair({
  * Partner (player2) accepts the registration
  * Transitions: pending_partner → pending_admin
  */
-export async function acceptPartnerInvite(registrationId) {
+export async function acceptPartnerInvite(registrationId, userId) {
+  // Verify the caller is player2 (the invited partner)
+  const { data: reg, error: fetchErr } = await supabase
+    .from('tournament_registrations')
+    .select('id, player2_uid')
+    .eq('id', registrationId)
+    .single()
+  if (fetchErr) throw fetchErr
+  if (userId && reg.player2_uid !== userId) {
+    throw new Error('Vous ne pouvez pas accepter l\'invitation d\'un autre joueur.')
+  }
+
   const { data, error } = await supabase
     .from('tournament_registrations')
     .update({ status: 'pending_admin' })
     .eq('id', registrationId)
-    .select()
+    .select('id, status')
     .single()
   if (error) throw error
   return data
@@ -119,12 +130,23 @@ export async function acceptPartnerInvite(registrationId) {
 /**
  * Partner (player2) declines
  */
-export async function declinePartnerInvite(registrationId) {
+export async function declinePartnerInvite(registrationId, userId) {
+  // Verify the caller is player2 (the invited partner)
+  const { data: reg, error: fetchErr } = await supabase
+    .from('tournament_registrations')
+    .select('id, player2_uid')
+    .eq('id', registrationId)
+    .single()
+  if (fetchErr) throw fetchErr
+  if (userId && reg.player2_uid !== userId) {
+    throw new Error('Vous ne pouvez pas refuser l\'invitation d\'un autre joueur.')
+  }
+
   const { data, error } = await supabase
     .from('tournament_registrations')
     .update({ status: 'cancelled' })
     .eq('id', registrationId)
-    .select()
+    .select('id, status')
     .single()
   if (error) throw error
   return data
@@ -188,16 +210,22 @@ export async function adminRejectRegistration(registrationId) {
  * Player confirms participation (48h before)
  * When both confirm → status = confirmed
  */
-export async function confirmParticipation(registrationId, playerNumber) {
+export async function confirmParticipation(registrationId, playerNumber, userId) {
   if (playerNumber !== 1 && playerNumber !== 2) throw new Error('playerNumber doit être 1 ou 2')
   const field = playerNumber === 1 ? 'player1_confirmed' : 'player2_confirmed'
 
   const { data: reg, error: fetchErr } = await supabase
     .from('tournament_registrations')
-    .select('*')
+    .select('id, player1_uid, player2_uid, player1_confirmed, player2_confirmed, status')
     .eq('id', registrationId)
     .single()
   if (fetchErr) throw fetchErr
+
+  // Ownership check
+  const expectedUid = playerNumber === 1 ? reg.player1_uid : reg.player2_uid
+  if (userId && expectedUid !== userId) {
+    throw new Error('Vous ne pouvez pas confirmer la participation d\'un autre joueur.')
+  }
 
   const updates = { [field]: true }
 
@@ -230,7 +258,7 @@ export async function cancelRegistrationAndPromote(registrationId, tournamentId)
   // Promote first waitlisted
   const { data: waitlisted } = await supabase
     .from('tournament_registrations')
-    .select('*')
+    .select('id, tournament_id, player1_uid, player2_uid, status, position')
     .eq('tournament_id', tournamentId)
     .eq('status', 'waitlist')
     .order('position')

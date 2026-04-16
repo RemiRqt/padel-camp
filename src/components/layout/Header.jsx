@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Menu, X, Home, CalendarDays, Trophy, User, Ticket, Calendar,
   LayoutDashboard, Users, Settings, ShoppingCart, Package,
-  CreditCard, LogOut, Shield, ChevronRight, Heart
+  CreditCard, LogOut, Shield, ChevronRight, Heart, FileBarChart
 } from 'lucide-react'
 
 const userLinks = [
@@ -25,6 +25,7 @@ const adminLinks = [
   { to: '/admin/products', icon: Package, label: 'Articles' },
   { to: '/admin/tournaments', icon: Trophy, label: 'Tournois' },
   { to: '/admin/formulas', icon: CreditCard, label: 'Formules' },
+  { to: '/admin/financial-export', icon: FileBarChart, label: 'Rapport financier' },
   { to: '/admin/settings', icon: Settings, label: 'Paramètres' },
 ]
 
