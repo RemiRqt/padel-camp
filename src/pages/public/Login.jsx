@@ -5,10 +5,12 @@ import { getRedirectAfterLogin } from '@/lib/permissions'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import toast from 'react-hot-toast'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
@@ -57,12 +59,22 @@ export default function Login() {
             id="login-password"
             name="password"
             label="Mot de passe"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
+            suffix={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                className="text-text-tertiary hover:text-primary transition-colors cursor-pointer"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            }
           />
           <Button type="submit" loading={loading} className="w-full">
             Se connecter

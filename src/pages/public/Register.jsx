@@ -4,6 +4,26 @@ import { useAuth } from '@/context/AuthContext'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import toast from 'react-hot-toast'
+import { Eye, EyeOff, Check, X } from 'lucide-react'
+
+const PASSWORD_RULES = [
+  { key: 'length', label: '8 caractères minimum', test: (p) => p.length >= 8 },
+  { key: 'letter', label: 'Au moins 1 lettre', test: (p) => /[a-zA-Z]/.test(p) },
+  { key: 'digit', label: 'Au moins 1 chiffre', test: (p) => /\d/.test(p) },
+]
+
+function EyeToggle({ shown, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={shown ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+      className="text-text-tertiary hover:text-primary transition-colors cursor-pointer"
+    >
+      {shown ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+    </button>
+  )
+}
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -13,6 +33,9 @@ export default function Register() {
     password: '',
     confirmPassword: '',
   })
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [passwordTouched, setPasswordTouched] = useState(false)
   const [loading, setLoading] = useState(false)
   const { signUp } = useAuth()
   const navigate = useNavigate()
@@ -20,21 +43,30 @@ export default function Register() {
   const update = (field) => (e) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
+  const rules = PASSWORD_RULES.map((r) => ({ ...r, valid: r.test(form.password) }))
+  const allRulesValid = rules.every((r) => r.valid)
+  const confirmMismatch =
+    form.confirmPassword.length > 0 && form.password !== form.confirmPassword
+  const canSubmit =
+    form.displayName.trim() &&
+    form.email.trim() &&
+    allRulesValid &&
+    !confirmMismatch &&
+    form.confirmPassword.length > 0
+
   const handleSubmit = async (e) => {
     e.preventDefault()
-
-    if (form.password.length < 8) {
-      toast.error('Le mot de passe doit contenir au moins 8 caractères')
+    if (!allRulesValid) {
+      toast.error('Le mot de passe ne respecte pas les critères')
       return
     }
     if (form.password !== form.confirmPassword) {
       toast.error('Les mots de passe ne correspondent pas')
       return
     }
-
     setLoading(true)
     try {
-      await signUp(form.email, form.password, form.displayName, form.phone)
+      await signUp(form.email, form.password, form.displayName, form.phone || null)
       toast.success('Compte créé ! Vérifiez votre email.')
       navigate('/login')
     } catch (err) {
@@ -55,7 +87,7 @@ export default function Register() {
           <p className="text-sm text-text-secondary mt-1">Rejoignez Padel Camp Achères</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <Input
             id="register-name"
             name="displayName"
@@ -81,36 +113,57 @@ export default function Register() {
           <Input
             id="register-phone"
             name="phone"
-            label="Téléphone"
+            label="Téléphone (optionnel)"
             type="tel"
             placeholder="06 12 34 56 78"
             value={form.phone}
             onChange={update('phone')}
             autoComplete="tel"
           />
-          <Input
-            id="register-password"
-            name="password"
-            label="Mot de passe"
-            type="password"
-            placeholder="8 caractères minimum"
-            value={form.password}
-            onChange={update('password')}
-            required
-            autoComplete="new-password"
-          />
+          <div>
+            <Input
+              id="register-password"
+              name="password"
+              label="Mot de passe"
+              type={showPassword ? 'text' : 'password'}
+              placeholder="8 caractères minimum"
+              value={form.password}
+              onChange={update('password')}
+              onFocus={() => setPasswordTouched(true)}
+              required
+              autoComplete="new-password"
+              suffix={<EyeToggle shown={showPassword} onClick={() => setShowPassword(!showPassword)} />}
+            />
+            {(passwordTouched || form.password.length > 0) && (
+              <ul className="mt-2 space-y-1 pl-0.5">
+                {rules.map((r) => (
+                  <li
+                    key={r.key}
+                    className={`flex items-center gap-1.5 text-xs transition-colors ${
+                      r.valid ? 'text-success' : 'text-text-tertiary'
+                    }`}
+                  >
+                    {r.valid ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                    {r.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <Input
             id="register-confirm"
             name="confirmPassword"
             label="Confirmer le mot de passe"
-            type="password"
+            type={showConfirm ? 'text' : 'password'}
             placeholder="••••••••"
             value={form.confirmPassword}
             onChange={update('confirmPassword')}
+            error={confirmMismatch ? 'Les mots de passe ne correspondent pas' : undefined}
             required
             autoComplete="new-password"
+            suffix={<EyeToggle shown={showConfirm} onClick={() => setShowConfirm(!showConfirm)} />}
           />
-          <Button type="submit" loading={loading} className="w-full">
+          <Button type="submit" loading={loading} disabled={!canSubmit} className="w-full">
             Créer mon compte
           </Button>
         </form>
