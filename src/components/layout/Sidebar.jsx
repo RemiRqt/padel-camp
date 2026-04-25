@@ -63,24 +63,13 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1 flex-1 overflow-y-auto">
+        {/* Admin sees only admin links, members see only user links — security separation */}
         <p className="px-4 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
-          Menu
+          {isAdmin ? 'Administration' : 'Menu'}
         </p>
-        {userLinks.map((link) => (
+        {(isAdmin ? adminLinks : userLinks).map((link) => (
           <SidebarLink key={link.to} {...link} />
         ))}
-
-        {isAdmin && (
-          <>
-            <div className="my-3 border-t border-separator" />
-            <p className="px-4 text-[10px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
-              Administration
-            </p>
-            {adminLinks.map((link) => (
-              <SidebarLink key={link.to} {...link} />
-            ))}
-          </>
-        )}
       </nav>
     </aside>
   )

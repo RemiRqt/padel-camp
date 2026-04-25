@@ -55,7 +55,7 @@ export default function Header() {
         style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
       >
         <div className="h-full px-4 flex items-center justify-between">
-          <Link to={user ? '/dashboard' : '/'} className="flex items-center gap-2.5">
+          <Link to={user ? (isAdmin ? '/admin' : '/dashboard') : '/'} className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center p-1.5">
               <img src="/favicon.svg" alt="Padel Camp" className="w-full h-full" />
             </div>
@@ -106,30 +106,10 @@ export default function Header() {
                 </div>
               </div>
 
-              {/* User links */}
-              <div className="space-y-0.5">
-                {userLinks.map(({ to, icon: Icon, label }) => {
-                  const active = location.pathname === to
-                  return (
-                    <button
-                      key={to}
-                      onClick={() => handleNav(to)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] transition-all text-left cursor-pointer ${
-                        active ? 'bg-primary text-white' : 'hover:bg-bg text-text'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5 shrink-0" strokeWidth={2} />
-                      <span className="text-sm font-medium flex-1">{label}</span>
-                      <ChevronRight className={`w-4 h-4 ${active ? 'text-white/40' : 'text-text-tertiary'}`} />
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Admin links */}
-              {isAdmin && (
+              {/* Admin sees only admin links, members see only user links — security separation */}
+              {isAdmin ? (
                 <>
-                  <div className="mt-5 mb-2 flex items-center gap-1.5">
+                  <div className="mb-2 flex items-center gap-1.5">
                     <Shield className="w-3 h-3 text-primary" />
                     <p className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Administration</p>
                   </div>
@@ -152,6 +132,25 @@ export default function Header() {
                     })}
                   </div>
                 </>
+              ) : (
+                <div className="space-y-0.5">
+                  {userLinks.map(({ to, icon: Icon, label }) => {
+                    const active = location.pathname === to
+                    return (
+                      <button
+                        key={to}
+                        onClick={() => handleNav(to)}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-[12px] transition-all text-left cursor-pointer ${
+                          active ? 'bg-primary text-white' : 'hover:bg-bg text-text'
+                        }`}
+                      >
+                        <Icon className="w-5 h-5 shrink-0" strokeWidth={2} />
+                        <span className="text-sm font-medium flex-1">{label}</span>
+                        <ChevronRight className={`w-4 h-4 ${active ? 'text-white/40' : 'text-text-tertiary'}`} />
+                      </button>
+                    )
+                  })}
+                </div>
               )}
 
               {/* Sign out */}

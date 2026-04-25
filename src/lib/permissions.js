@@ -3,6 +3,11 @@
  * All role checks must go through canAccess() — never check role directly
  */
 
+// Strict separation: admin role accesses ONLY admin.* features,
+// user role accesses ONLY user.* features. This is enforced at route level
+// (ProtectedRoute redirects admins to /admin, AdminRoute redirects users
+// to /dashboard) and at navigation level (Header/Sidebar render only the
+// links matching the current role).
 const permissions = {
   admin: [
     'admin.dashboard',
@@ -15,12 +20,6 @@ const permissions = {
     'admin.formulas',
     'admin.settings',
     'admin.financial-export',
-    'user.dashboard',
-    'user.booking',
-    'user.profile',
-    'user.tournaments',
-    'user.social',
-    'user.events',
   ],
   user: [
     'user.dashboard',
