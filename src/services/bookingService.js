@@ -258,10 +258,12 @@ export async function updatePlayerParts({ playerId, bookingPrice, parts }) {
 
 export async function searchMembers(query) {
   if (!query || query.length < 2) return []
+  // Admin accounts never appear as bookable/invitable members
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, email, avatar_url')
     .ilike('display_name', `%${query}%`)
+    .neq('role', 'admin')
     .limit(5)
   if (error) throw error
   return data || []

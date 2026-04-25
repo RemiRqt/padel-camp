@@ -277,10 +277,12 @@ export async function cancelRegistrationAndPromote(registrationId, tournamentId)
 
 export async function searchMembersForTournament(query) {
   if (!query || query.length < 2) return []
+  // Admin accounts never appear as a tournament partner option
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, email, license_number')
     .ilike('display_name', `%${query}%`)
+    .neq('role', 'admin')
     .limit(8)
   if (error) throw error
   return data || []

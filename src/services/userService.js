@@ -34,10 +34,12 @@ export async function fetchMembersCount() {
 
 export async function searchMembers(query, excludeId = null) {
   if (!query || query.length < 2) return []
+  // Admin accounts are hidden from member-facing searches
   let q = supabase
     .from('profiles')
     .select('id, display_name, email')
     .ilike('display_name', `%${query}%`)
+    .neq('role', 'admin')
     .limit(5)
   if (excludeId) q = q.neq('id', excludeId)
   const { data, error } = await q
