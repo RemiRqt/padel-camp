@@ -6,8 +6,8 @@ import {
 } from 'lucide-react'
 
 export default function POSSessionGrid({
-  dateStr, selectedDate, setSelectedDate, isToday, dayLabel,
-  slots, bookings, bLoading, dayEvents,
+  dateStr, setSelectedDate, isToday, dayLabel,
+  slots, bLoading,
   salesToday, showAllSales, setShowAllSales,
   exportRows, exportCols,
   onOpenSession, onOpenNewBooking,
