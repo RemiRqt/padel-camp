@@ -1,7 +1,11 @@
 import { NavLink } from 'react-router-dom'
-import { Home, CalendarDays, Heart, Trophy, User } from 'lucide-react'
+import {
+  Home, CalendarDays, Heart, Trophy, User,
+  LayoutDashboard, ShoppingCart, Users, Calendar
+} from 'lucide-react'
+import { useAuth } from '@/context/AuthContext'
 
-const items = [
+const userItems = [
   { to: '/dashboard', icon: Home, label: 'Accueil' },
   { to: '/booking', icon: CalendarDays, label: 'Réserver' },
   { to: '/social', icon: Heart, label: 'Social' },
@@ -9,7 +13,18 @@ const items = [
   { to: '/profile', icon: User, label: 'Compte' },
 ]
 
+const adminItems = [
+  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/admin/pos', icon: ShoppingCart, label: 'POS' },
+  { to: '/admin/calendar', icon: Calendar, label: 'Planning' },
+  { to: '/admin/members', icon: Users, label: 'Membres' },
+  { to: '/admin/tournaments', icon: Trophy, label: 'Tournois' },
+]
+
 export default function BottomNav() {
+  const { isAdmin } = useAuth()
+  const items = isAdmin ? adminItems : userItems
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 lg:hidden">
       <div
@@ -20,6 +35,7 @@ export default function BottomNav() {
           <NavLink
             key={to}
             to={to}
+            end={to === '/admin'}
             className={({ isActive }) =>
               `flex flex-col items-center gap-0.5 py-1 px-3 rounded-xl transition-colors ${
                 isActive ? 'text-primary' : 'text-text-tertiary hover:text-text-secondary'
