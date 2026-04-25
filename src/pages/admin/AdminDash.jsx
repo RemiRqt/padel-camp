@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { fetchAdminDashboard } from '@/services/dashboardService'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
@@ -6,17 +6,26 @@ import DateRangePicker from '@/components/ui/DateRangePicker'
 import ExportButtons from '@/components/ui/ExportButtons'
 import { exportExcel, exportPDF } from '@/utils/export'
 import { toDateString } from '@/utils/formatDate'
-import DashboardCharts from '@/components/admin/dashboard/DashboardCharts'
 import {
   Users, CalendarDays, Euro, Gift, ShoppingCart, CreditCard,
-  TrendingUp, Trophy, Percent
+  Trophy, Percent
 } from 'lucide-react'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  Legend
-} from 'recharts'
+
+// Lazy-load recharts-using components to keep AdminDash chunk light
+const RevenueChart = lazy(() => import('@/components/admin/dashboard/RevenueChart'))
+const DashboardCharts = lazy(() => import('@/components/admin/dashboard/DashboardCharts'))
 
 const COLORS = ['#0B2778', '#D4E620', '#34C759', '#FF9500', '#FF3B30', '#6E6E73']
+
+function ChartSkeleton({ height = 280 }) {
+  return (
+    <div
+      className="bg-surface-2 rounded-2xl animate-pulse"
+      style={{ height }}
+      aria-label="Chargement du graphique"
+    />
+  )
+}
 
 function kpi(val, suffix = '') {
   if (val === null || val === undefined) return '—'
@@ -45,27 +54,28 @@ export default function AdminDash() {
     async function fetch() {
       setLoading(true)
       try {
-      const result = await fetchAdminDashboard(from, to)
-      setMembersCount(result.membersCount)
-      setTodayBookings(result.todayBookings)
-      setTransactions(result.transactions)
-      setBookings(result.bookings)
-      setTournamentsCount(result.tournamentsCount)
+        const result = await fetchAdminDashboard(from, to)
+        setMembersCount(result.membersCount)
+        setTodayBookings(result.todayBookings)
+        setTransactions(result.transactions)
+        setBookings(result.bookings)
+        setTournamentsCount(result.tournamentsCount)
 
-      // Taux d'occupation : résas / (jours × 3 terrains × 9 créneaux/jour)
-      const dayCount = Math.max(1, Math.ceil((new Date(to) - new Date(from)) / 86400000) + 1)
-      const maxSlots = dayCount * 3 * 9
-      setOccupancyRate(Math.min(100, Math.round(((bRes.data?.length || 0) / maxSlots) * 100)))
+        // Taux d'occupation : résas / (jours × 3 terrains × 9 créneaux/jour)
+        const dayCount = Math.max(1, Math.ceil((new Date(to) - new Date(from)) / 86400000) + 1)
+        const maxSlots = dayCount * 3 * 9
+        const periodBookings = result.bookings || []
+        setOccupancyRate(Math.min(100, Math.round((periodBookings.length / maxSlots) * 100)))
 
-      // Court occupancy
-      const courts = {}
-      ;(bRes.data || []).forEach((b) => {
-        courts[b.court_id] = (courts[b.court_id] || 0) + 1
-      })
-      setCourtOccupancy(Object.entries(courts).map(([id, count]) => ({
-        name: `Terrain ${id.replace('terrain_', '')}`,
-        reservations: count,
-      })))
+        // Court occupancy
+        const courts = {}
+        periodBookings.forEach((b) => {
+          courts[b.court_id] = (courts[b.court_id] || 0) + 1
+        })
+        setCourtOccupancy(Object.entries(courts).map(([id, count]) => ({
+          name: `Terrain ${id.replace('terrain_', '')}`,
+          reservations: count,
+        })))
       } catch (err) {
         console.error('[AdminDash] fetch error:', err)
       } finally {
@@ -241,33 +251,15 @@ export default function AdminDash() {
           </Card>
         </div>
 
-        {/* Revenue chart */}
-        <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="w-4 h-4 text-primary" />
-            <h3 className="font-semibold text-text">Évolution du CA</h3>
-          </div>
-          {revenueByDay.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={revenueByDay}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip
-                  formatter={(v) => `${v.toFixed(2)}€`}
-                  contentStyle={{ borderRadius: 12, fontSize: 12 }}
-                />
-                <Line type="monotone" dataKey="reel" name="CA réel" stroke="#0B2778" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="bonus" name="Bonus" stroke="#D4E620" strokeWidth={2} dot={false} />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm text-text-tertiary text-center py-8">Aucune donnée sur cette période</p>
-          )}
-        </Card>
+        {/* Revenue chart (lazy) */}
+        <Suspense fallback={<ChartSkeleton height={336} />}>
+          <RevenueChart data={revenueByDay} />
+        </Suspense>
 
-        <DashboardCharts txBreakdown={txBreakdown} courtOccupancy={courtOccupancy} COLORS={COLORS} />
+        {/* Transactions + court occupancy charts (lazy) */}
+        <Suspense fallback={<ChartSkeleton height={300} />}>
+          <DashboardCharts txBreakdown={txBreakdown} courtOccupancy={courtOccupancy} COLORS={COLORS} />
+        </Suspense>
 
       </div>
     </PageWrapper>

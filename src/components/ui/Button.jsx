@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Loader2 } from 'lucide-react'
 
 const variants = {
@@ -14,7 +15,7 @@ const sizes = {
   lg: 'px-6 py-3 text-base',
 }
 
-export default function Button({
+function Button({
   children,
   variant = 'primary',
   size = 'md',
@@ -42,3 +43,5 @@ export default function Button({
     </button>
   )
 }
+
+export default memo(Button)

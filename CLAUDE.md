@@ -2,7 +2,7 @@
 
 ## Projet
 Application de gestion et réservation pour le club **Padel Camp Achères**.
-- **Stack** : React 18 (Vite) + Tailwind CSS + Supabase (Auth, PostgreSQL, Storage, Edge Functions)
+- **Stack** : React 19 (Vite) + Tailwind CSS + Supabase (Auth, PostgreSQL, Storage, Edge Functions)
 - **Design** : Mobile-first, style Apple, font Poppins, charte couleurs bleu marine #0B2778 + lime #D4E620
 - **PWA** : Progressive Web App (manifest + service worker)
 - **Hosting** : Vercel — https://padel-camp-iota.vercel.app

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import Card from '@/components/ui/Card'
 import Badge from '@/components/ui/Badge'
@@ -18,7 +19,7 @@ const REG_STATUS_COLORS = {
   waitlist: 'gray', confirmed: 'primary', cancelled: 'danger',
 }
 
-export default function TournamentRegistrationCard({
+function TournamentRegistrationCard({
   reg, userId, actionLoading, onConfirm, onCancel,
 }) {
   const isPlayer1 = reg.player1_uid === userId
@@ -138,3 +139,5 @@ export default function TournamentRegistrationCard({
     </Card>
   )
 }
+
+export default memo(TournamentRegistrationCard)

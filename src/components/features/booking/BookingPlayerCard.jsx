@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import { UserPlus, Wallet, CreditCard, Banknote } from 'lucide-react'
@@ -14,7 +15,7 @@ const INVITE_BADGE = {
   declined: { color: 'danger', label: 'Refusée' },
 }
 
-export default function BookingPlayerCard({
+function BookingPlayerCard({
   player, idx, userId, isOwner, isPaid, share, submitting,
   onPayBalance, onPayExternal, onClearSlot, onOpenAdd,
 }) {
@@ -108,3 +109,5 @@ export default function BookingPlayerCard({
     </div>
   )
 }
+
+export default memo(BookingPlayerCard)

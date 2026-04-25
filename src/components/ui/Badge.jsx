@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 const colors = {
   primary: 'bg-primary/10 text-primary',
   lime: 'bg-lime/30 text-primary',
@@ -7,7 +9,7 @@ const colors = {
   gray: 'bg-text-tertiary/10 text-text-secondary',
 }
 
-export default function Badge({ children, color = 'primary', className = '' }) {
+function Badge({ children, color = 'primary', className = '' }) {
   return (
     <span
       className={`
@@ -20,3 +22,5 @@ export default function Badge({ children, color = 'primary', className = '' }) {
     </span>
   )
 }
+
+export default memo(Badge)

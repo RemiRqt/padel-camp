@@ -1,4 +1,6 @@
-export default function Card({ children, className = '', elevated = false, ...props }) {
+import { memo } from 'react'
+
+function Card({ children, className = '', elevated = false, ...props }) {
   return (
     <div
       className={`
@@ -15,3 +17,5 @@ export default function Card({ children, className = '', elevated = false, ...pr
     </div>
   )
 }
+
+export default memo(Card)
