@@ -7,6 +7,7 @@ import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import AdminRoute from '@/components/layout/AdminRoute'
 import OfflineBanner from '@/components/ui/OfflineBanner'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
+import InstallPWA from '@/components/ui/InstallPWA'
 
 // Pages publiques (Landing eager, reste lazy)
 import Landing from '@/pages/public/Landing'
@@ -44,6 +45,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <OfflineBanner />
+        <InstallPWA />
         <Toaster
           position="top-center"
           toastOptions={{
