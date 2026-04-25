@@ -8,6 +8,8 @@ import AdminRoute from '@/components/layout/AdminRoute'
 import OfflineBanner from '@/components/ui/OfflineBanner'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
 import InstallPWA from '@/components/ui/InstallPWA'
+import PageLoader from '@/components/ui/PageLoader'
+import ScrollToTop from '@/components/layout/ScrollToTop'
 
 // Pages publiques (Landing eager, reste lazy)
 import Landing from '@/pages/public/Landing'
@@ -44,6 +46,7 @@ export default function App() {
     <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
+        <ScrollToTop />
         <OfflineBanner />
         <InstallPWA />
         <Toaster
@@ -57,7 +60,7 @@ export default function App() {
             },
           }}
         />
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 border-4 border-[#0B2778] border-t-transparent rounded-full animate-spin" /></div>}>
+        <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Routes publiques */}
           <Route path="/" element={<Landing />} />
