@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import { useUserBookings } from '@/hooks/useBookings'
-import { getMyInvitations, acceptInvitation, declineInvitation } from '@/services/bookingService'
+import { useInvitations } from '@/hooks/useInvitations'
 import { fetchUserDashboard } from '@/services/dashboardService'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import ErrorState from '@/components/ui/ErrorState'
@@ -14,16 +14,18 @@ import Button from '@/components/ui/Button'
 import DashboardConfirmations from '@/components/features/dashboard/DashboardConfirmations'
 import DashboardInvitations from '@/components/features/dashboard/DashboardInvitations'
 import DashboardTransactions from '@/components/features/dashboard/DashboardTransactions'
-import toast from 'react-hot-toast'
 import {
   Wallet, CalendarDays, Trophy, Clock,
   CheckCircle, Calendar, ChevronRight
 } from 'lucide-react'
-import { formatDateShort, formatTime, toDateString, monthTiny, dayNum, formatDateFull } from '@/utils/formatDate'
+import { formatDateShort, formatTime, monthTiny, dayNum, formatDateFull } from '@/utils/formatDate'
 
 export default function Dashboard() {
   const { profile, user } = useAuth()
   const { bookings: upcomingBookings, loading: bookingsLoading } = useUserBookings(user?.id)
+  const { invitations, loading: invitationsLoading, accept, decline } = useInvitations(user?.id)
+  const submitting = accept.isPending || decline.isPending
+
   const [transactions, setTransactions] = useState([])
   const [txTotal, setTxTotal] = useState(0)
   const [nextTournament, setNextTournament] = useState(null)
@@ -35,11 +37,7 @@ export default function Dashboard() {
   const [bookingStats, setBookingStats] = useState({ completed: 0, upcoming: 0 })
   const [statsLoading, setStatsLoading] = useState(true)
 
-  // Invitations
-  const [invitations, setInvitations] = useState([])
-  const [invitationsLoading, setInvitationsLoading] = useState(true)
   const [respondingTo, setRespondingTo] = useState(null)
-  const [submitting, setSubmitting] = useState(false)
 
   const { confirmProps, askConfirm } = useConfirm()
 
@@ -47,54 +45,21 @@ export default function Dashboard() {
   const bonus = parseFloat(profile?.balance_bonus || 0)
   const total = balance + bonus
 
-  const fetchInvitations = useCallback(async () => {
-    if (!user?.id) return
-    try {
-      const data = await getMyInvitations(user.id)
-      setInvitations(data)
-    } catch (err) {
-      console.error('[Dashboard] invitations fetch error:', err)
-    } finally {
-      setInvitationsLoading(false)
-    }
-  }, [user?.id])
-
-  const handleAcceptInvitation = async (invitation, paymentMethod) => {
-    setSubmitting(true)
-    try {
-      await acceptInvitation({ playerId: invitation.id, paymentMethod, userId: user.id })
-      toast.success(paymentMethod === 'balance' ? 'Invitation acceptée et payée !' : 'Invitation acceptée !')
-      setRespondingTo(null)
-      await fetchInvitations()
-    } catch (err) {
-      toast.error(err.message)
-    } finally {
-      setSubmitting(false)
-    }
+  const handleAcceptInvitation = (invitation, paymentMethod) => {
+    accept.mutate(
+      { invitation, paymentMethod },
+      { onSuccess: () => setRespondingTo(null) }
+    )
   }
 
   const handleDeclineInvitation = (invitation) => {
     askConfirm({
       message: 'Refuser cette invitation ?',
-      onConfirm: async () => {
-        setSubmitting(true)
-        try {
-          await declineInvitation(invitation.id, user.id)
-          toast.success('Invitation refusée')
-          setRespondingTo(null)
-          await fetchInvitations()
-        } catch (err) {
-          toast.error(err.message)
-        } finally {
-          setSubmitting(false)
-        }
+      onConfirm: () => {
+        decline.mutate(invitation, { onSuccess: () => setRespondingTo(null) })
       },
     })
   }
-
-  useEffect(() => {
-    fetchInvitations()
-  }, [fetchInvitations])
 
   const fetchDashboard = useCallback(async () => {
     if (!user?.id) return

@@ -7,4 +7,5 @@ export const qk = {
     byDate: (date) => ['bookings', 'byDate', date],
     user: (userId) => ['bookings', 'user', userId],
   },
+  invitations: (userId) => ['invitations', userId],
 }
