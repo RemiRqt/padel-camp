@@ -43,3 +43,7 @@ Thumbs.db
 
 # Local Supabase dumps
 _tables.json
+
+# Supabase CLI local state (project ref, cached versions)
+supabase/.temp/
+supabase/.branches/
