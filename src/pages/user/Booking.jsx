@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
 import { useClub } from '@/hooks/useClub'
 import { useBookings } from '@/hooks/useBookings'
+import { qk } from '@/lib/queryKeys'
 import { generateSlots, isSlotBooked, isSlotPast } from '@/utils/slots'
 import { getSlotPrice } from '@/utils/calculatePrice'
 import { formatTime, toDateString, addDays, getDayIndex, DAYS_SHORT, isSameDay, isToday } from '@/utils/formatDate'
@@ -27,10 +29,29 @@ export default function Booking() {
   const { bookings, loading: bookingsLoading, error: bookingsError, refetch } = useBookings(selectedDate)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [creating, setCreating] = useState(false)
   const [payChoice, setPayChoice] = useState('my_part')
 
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const createMutation = useMutation({
+    mutationFn: createBooking,
+    onSuccess: (booking, variables) => {
+      const msgs = {
+        my_part: 'Réservation confirmée, votre part est payée !',
+        full: 'Réservation confirmée et payée intégralement !',
+        none: 'Réservation confirmée ! Paiement en attente.',
+      }
+      toast.success(msgs[variables.payNow])
+      queryClient.invalidateQueries({ queryKey: qk.bookings.byDate(variables.date) })
+      queryClient.invalidateQueries({ queryKey: qk.bookings.user(user?.id) })
+      setConfirmOpen(false)
+      setSelectedSlot(null)
+      navigate(`/booking/${booking.id}`)
+    },
+    onError: (err) => toast.error(err.message || 'Erreur lors de la réservation'),
+  })
+  const creating = createMutation.isPending
 
   // Fetch tournaments & events for the selected date to block courts
   const [dayEvents, setDayEvents] = useState([])
@@ -74,34 +95,22 @@ export default function Booking() {
   const canPayPart = totalBalance >= myShare
   const canPayFull = selectedSlot ? totalBalance >= selectedSlot.price : false
 
-  const handleConfirm = async () => {
+  const handleConfirm = () => {
     if (!selectedSlot || !user || !profile) return
-    setCreating(true)
-    try {
-      let effectivePayNow = payChoice
-      if (payChoice === 'my_part' && !canPayPart) effectivePayNow = 'none'
-      if (payChoice === 'full' && !canPayFull) effectivePayNow = 'none'
+    let effectivePayNow = payChoice
+    if (payChoice === 'my_part' && !canPayPart) effectivePayNow = 'none'
+    if (payChoice === 'full' && !canPayFull) effectivePayNow = 'none'
 
-      const booking = await createBooking({
-        userId: user.id,
-        userName: profile.display_name,
-        courtId: selectedSlot.courtId,
-        date: toDateString(selectedDate),
-        startTime: selectedSlot.start,
-        endTime: selectedSlot.end,
-        price: selectedSlot.price,
-        payNow: effectivePayNow,
-      })
-      const msgs = { my_part: 'Réservation confirmée, votre part est payée !', full: 'Réservation confirmée et payée intégralement !', none: 'Réservation confirmée ! Paiement en attente.' }
-      toast.success(msgs[effectivePayNow])
-      setConfirmOpen(false)
-      setSelectedSlot(null)
-      navigate(`/booking/${booking.id}`)
-    } catch (err) {
-      toast.error(err.message || 'Erreur lors de la réservation')
-    } finally {
-      setCreating(false)
-    }
+    createMutation.mutate({
+      userId: user.id,
+      userName: profile.display_name,
+      courtId: selectedSlot.courtId,
+      date: toDateString(selectedDate),
+      startTime: selectedSlot.start,
+      endTime: selectedSlot.end,
+      price: selectedSlot.price,
+      payNow: effectivePayNow,
+    })
   }
 
   if (clubLoading) {
