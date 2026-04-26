@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useMutation } from '@tanstack/react-query'
 import { useAuth } from '@/context/AuthContext'
 import {
   fetchTournamentById, registerPair, searchMembersForTournament
@@ -35,7 +36,18 @@ export default function TournamentRegister() {
   const [externalName, setExternalName] = useState('')
   const [externalLicense, setExternalLicense] = useState('')
 
-  const [submitting, setSubmitting] = useState(false)
+  const registerMutation = useMutation({
+    mutationFn: registerPair,
+    onSuccess: () => {
+      const msg = partnerMode === 'member'
+        ? `Inscription envoyée ! ${selectedPartner.display_name} doit accepter.`
+        : 'Inscription envoyée ! En attente de validation admin.'
+      toast.success(msg)
+      navigate(`/tournaments/${id}`)
+    },
+    onError: (err) => toast.error(err.message),
+  })
+  const submitting = registerMutation.isPending
 
   useEffect(() => {
     async function load() {
@@ -68,10 +80,9 @@ export default function TournamentRegister() {
     return () => clearTimeout(timer)
   }, [searchQuery, partnerMode, user])
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!user || !profile || !tournament) return
 
-    // Validate player1 license
     if (!profile.license_number) {
       toast.error('Vous devez renseigner votre licence FFT dans votre profil')
       return
@@ -97,29 +108,16 @@ export default function TournamentRegister() {
       }
     }
 
-    setSubmitting(true)
-    try {
-      await registerPair({
-        tournamentId: id,
-        player1Uid: user.id,
-        player1Name: profile.display_name,
-        player1License: profile.license_number,
-        player2Uid: partnerMode === 'member' ? selectedPartner.id : null,
-        player2Name: partnerMode === 'member' ? selectedPartner.display_name : externalName.trim(),
-        player2License: partnerMode === 'member' ? selectedPartner.license_number : externalLicense.trim(),
-        player2IsExternal: partnerMode === 'external',
-      })
-
-      const msg = partnerMode === 'member'
-        ? `Inscription envoyée ! ${selectedPartner.display_name} doit accepter.`
-        : 'Inscription envoyée ! En attente de validation admin.'
-      toast.success(msg)
-      navigate(`/tournaments/${id}`)
-    } catch (err) {
-      toast.error(err.message)
-    } finally {
-      setSubmitting(false)
-    }
+    registerMutation.mutate({
+      tournamentId: id,
+      player1Uid: user.id,
+      player1Name: profile.display_name,
+      player1License: profile.license_number,
+      player2Uid: partnerMode === 'member' ? selectedPartner.id : null,
+      player2Name: partnerMode === 'member' ? selectedPartner.display_name : externalName.trim(),
+      player2License: partnerMode === 'member' ? selectedPartner.license_number : externalLicense.trim(),
+      player2IsExternal: partnerMode === 'external',
+    })
   }
 
   if (loading) {
