@@ -51,14 +51,16 @@ export async function fetchAdminDashboard(from, to) {
     supabase.from('bookings').select('id', { count: 'exact', head: true })
       .eq('date', today).eq('status', 'confirmed'),
     supabase.from('transactions')
-      .select('id, type, amount, description, created_at, payment_method')
+      .select('id, type, amount, description, created_at, payment_method, booking_id, product_id')
       .gte('created_at', from + 'T00:00:00')
       .lte('created_at', to + 'T23:59:59')
-      .order('created_at'),
+      .order('created_at')
+      .limit(50000),
     supabase.from('bookings')
       .select('id, court_id, payment_status')
       .gte('date', from).lte('date', to)
-      .eq('status', 'confirmed'),
+      .eq('status', 'confirmed')
+      .limit(20000),
     supabase.from('tournaments').select('id', { count: 'exact', head: true })
       .in('status', ['open', 'full', 'closed']),
   ])

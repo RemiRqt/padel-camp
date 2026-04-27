@@ -29,7 +29,7 @@ export async function fetchTransactionsByPeriod(from, to) {
     .gte('created_at', from + 'T00:00:00')
     .lte('created_at', to + 'T23:59:59')
     .order('created_at', { ascending: false })
-    .limit(2000)
+    .limit(50000)
   if (error) throw error
   return data || []
 }
