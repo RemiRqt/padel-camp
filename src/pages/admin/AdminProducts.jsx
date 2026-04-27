@@ -218,31 +218,47 @@ export default function AdminProducts() {
             <p className="text-sm text-text-tertiary">Aucun article dans cette catégorie</p>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredProducts.map((p) => (
-              <Card key={p.id} className="!p-4">
-                <div className="flex items-center gap-3">
+              <Card key={p.id} className="!p-4 flex flex-col gap-3">
+                {/* Header : icône + nom + statut */}
+                <div className="flex items-start gap-3">
                   <div className="w-10 h-10 rounded-[10px] bg-primary/5 flex items-center justify-center shrink-0">
                     <Package className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text truncate">{p.name}</p>
-                    <p className="text-xs text-text-secondary">
-                      {p.category?.name}
-                      <span className="text-text-tertiary"> · TVA {formatTvaRate(getProductTvaRate(p))}{p.tva_rate == null ? ' (cat.)' : ''}</span>
-                    </p>
+                    <p className="text-sm font-semibold text-text leading-tight mb-1">{p.name}</p>
+                    <Badge color="primary">{p.category?.name}</Badge>
                   </div>
-                  <p className="text-sm font-bold text-primary mr-1">{parseFloat(p.price).toFixed(2)}€</p>
-                  <button onClick={() => toggleProd(p)} className="cursor-pointer">
+                  <button onClick={() => toggleProd(p)} className="cursor-pointer shrink-0" title={p.is_active ? 'Désactiver' : 'Activer'}>
                     <Badge color={p.is_active ? 'success' : 'gray'}>
                       {p.is_active ? 'Actif' : 'Inactif'}
                     </Badge>
                   </button>
-                  <button onClick={() => openEditProd(p)} className="p-1.5 rounded-lg hover:bg-bg cursor-pointer">
-                    <Pencil className="w-3.5 h-3.5 text-text-secondary" />
+                </div>
+
+                {/* Prix + TVA */}
+                <div className="flex items-baseline justify-between border-t border-separator pt-2">
+                  <p className="text-xl font-bold text-primary">{parseFloat(p.price).toFixed(2)}€</p>
+                  <span className="text-xs text-text-tertiary">
+                    TVA {formatTvaRate(getProductTvaRate(p))}{p.tva_rate == null ? ' (cat.)' : ''}
+                  </span>
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => openEditProd(p)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[10px] bg-bg hover:bg-primary/5 text-xs font-medium text-text-secondary cursor-pointer transition-colors"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Modifier
                   </button>
-                  <button onClick={() => deleteProd(p)} className="p-1.5 rounded-lg hover:bg-danger/10 cursor-pointer">
-                    <Trash2 className="w-3.5 h-3.5 text-danger" />
+                  <button
+                    onClick={() => deleteProd(p)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-bg hover:bg-danger/10 hover:text-danger text-xs font-medium text-text-tertiary cursor-pointer transition-colors"
+                    title="Supprimer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </Card>
