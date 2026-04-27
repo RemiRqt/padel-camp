@@ -324,7 +324,7 @@ export default function usePOSHandlers({ dateStr, selectedDate, pricingRules, as
     newBookingModal, setNewBookingModal, newSlot,
     newSearch, setNewSearch, newResults, creatingBooking,
     // Products
-    categories, filteredProducts, activeCat, setActiveCat,
+    categories, products, filteredProducts, activeCat, setActiveCat,
     cart, cartTotal, addToCart, updateCartQty,
     // Sale modal
     saleModal, setSaleModal, saleSearch, setSaleSearch, saleResults,

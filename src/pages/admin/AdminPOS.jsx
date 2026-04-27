@@ -93,7 +93,7 @@ export default function AdminPOS() {
 
         {tab === 'articles' && (
           <POSArticlesTab
-            categories={h.categories} filteredProducts={h.filteredProducts}
+            categories={h.categories} products={h.products} filteredProducts={h.filteredProducts}
             activeCat={h.activeCat} setActiveCat={h.setActiveCat}
             cart={h.cart} addToCart={h.addToCart} updateCartQty={h.updateCartQty}
             cartTotal={h.cartTotal} onCheckout={h.openSaleCheckout}

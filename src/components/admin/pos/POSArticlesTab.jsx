@@ -1,31 +1,90 @@
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import Badge from '@/components/ui/Badge'
 import { Minus, Plus } from 'lucide-react'
 
+function ProductCard({ p, categoryName, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className="p-3 rounded-[14px] bg-white hover:shadow-[0_4px_12px_rgba(11,39,120,0.1)] transition-all text-left cursor-pointer active:scale-95 flex flex-col gap-1.5"
+    >
+      <Badge color="primary" className="self-start">{categoryName}</Badge>
+      <p className="text-sm font-medium text-text leading-tight line-clamp-2">{p.name}</p>
+      <p className="text-lg font-bold text-primary mt-auto">{parseFloat(p.price).toFixed(2)}€</p>
+    </button>
+  )
+}
+
 export default function POSArticlesTab({
-  categories, filteredProducts, activeCat, setActiveCat,
+  categories, products, filteredProducts, activeCat, setActiveCat,
   cart, addToCart, updateCartQty, cartTotal, onCheckout,
 }) {
+  const showAll = !activeCat
+  const categoryById = Object.fromEntries(categories.map((c) => [c.id, c.name]))
+
+  // Quand "Tout voir" : grouper par catégorie. Sinon afficher la liste filtrée à plat.
+  const groups = showAll
+    ? categories
+        .map((cat) => ({ cat, items: products.filter((p) => p.category_id === cat.id) }))
+        .filter((g) => g.items.length > 0)
+    : []
+
   return (
     <div className="space-y-4">
+      {/* Filtres catégorie : "Tout voir" + une chip par catégorie */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <button
+          onClick={() => setActiveCat(null)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer ${
+            showAll ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-bg'
+          }`}
+        >
+          Tout voir
+        </button>
         {categories.map((cat) => (
-          <button key={cat.id} onClick={() => setActiveCat(cat.id)}
+          <button
+            key={cat.id}
+            onClick={() => setActiveCat(cat.id)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer ${
-              activeCat === cat.id ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-bg'}`}>
+              activeCat === cat.id ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-bg'
+            }`}
+          >
             {cat.name}
           </button>
         ))}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-        {filteredProducts.map((p) => (
-          <button key={p.id} onClick={() => addToCart(p)}
-            className="p-3 rounded-[14px] bg-white hover:shadow-[0_4px_12px_rgba(11,39,120,0.1)] transition-all text-left cursor-pointer active:scale-95">
-            <p className="text-sm font-medium text-text truncate">{p.name}</p>
-            <p className="text-lg font-bold text-primary">{parseFloat(p.price).toFixed(2)}€</p>
-          </button>
-        ))}
-      </div>
+
+      {/* Grille des produits */}
+      {showAll ? (
+        <div className="space-y-5">
+          {groups.map(({ cat, items }) => (
+            <div key={cat.id}>
+              <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">
+                {cat.name}
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {items.map((p) => (
+                  <ProductCard key={p.id} p={p} categoryName={cat.name} onClick={() => addToCart(p)} />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {filteredProducts.map((p) => (
+            <ProductCard
+              key={p.id}
+              p={p}
+              categoryName={categoryById[p.category_id] || ''}
+              onClick={() => addToCart(p)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Panier */}
       {cart.length > 0 && (
         <Card elevated>
           <h3 className="text-sm font-semibold mb-3">Panier</h3>
