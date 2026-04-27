@@ -107,7 +107,7 @@ export default function AdminCalendar() {
     try {
       const data = { ...tForm, max_teams: parseInt(tForm.max_teams), registration_deadline: tForm.registration_deadline || null }
       await saveTournament(editingT?.id, data)
-      toast.success(editingT ? 'Tournoi mis à jour' : 'Tournoi créé')
+      toast.success(editingT ? 'Tournoi mis \u00e0 jour' : 'Tournoi cr\u00e9\u00e9')
       setTModalOpen(false); fetchAll()
     } catch (err) { toast.error(err.message) }
     finally { setSavingT(false) }
@@ -117,7 +117,7 @@ export default function AdminCalendar() {
       title: `Supprimer "${t.name}" ?`,
       confirmLabel: 'Supprimer',
       onConfirm: async () => {
-        try { await deleteTournament(t.id); toast.success('Supprimé'); fetchAll() }
+        try { await deleteTournament(t.id); toast.success('Supprim\u00e9'); fetchAll() }
         catch (err) { toast.error(err.message) }
       },
     })
@@ -140,7 +140,7 @@ export default function AdminCalendar() {
     try {
       const data = { name: eForm.name, description: eForm.description || null, date: eForm.date, start_time: eForm.start_time || null, end_time: eForm.end_time || null, is_public: eForm.is_public }
       await saveEvent(editingE?.id, data)
-      toast.success(editingE ? 'Événement mis à jour' : 'Événement créé')
+      toast.success(editingE ? '\u00c9v\u00e9nement mis \u00e0 jour' : '\u00c9v\u00e9nement cr\u00e9\u00e9')
       setEModalOpen(false); fetchAll()
     } catch (err) { toast.error(err.message) }
     finally { setSavingE(false) }
@@ -150,7 +150,7 @@ export default function AdminCalendar() {
       title: `Supprimer "${e.name}" ?`,
       confirmLabel: 'Supprimer',
       onConfirm: async () => {
-        try { await deleteEvent(e.id); toast.success('Supprimé'); fetchAll() }
+        try { await deleteEvent(e.id); toast.success('Supprim\u00e9'); fetchAll() }
         catch (err) { toast.error(err.message) }
       },
     })
@@ -168,14 +168,14 @@ export default function AdminCalendar() {
     setActionLoading(regId)
     try {
       const result = await adminValidateRegistration(regId, selTournament.id, selTournament.max_teams)
-      toast.success(result.status === 'waitlist' ? `File d'attente (#${result.position})` : 'Validée')
+      toast.success(result.status === 'waitlist' ? `File d'attente (#${result.position})` : 'Valid\u00e9e')
       viewRegistrations(selTournament)
     } catch (err) { toast.error(err.message) }
     finally { setActionLoading(null) }
   }
   const handleReject = async (regId) => {
     setActionLoading(regId)
-    try { await adminRejectRegistration(regId); toast.success('Refusée'); viewRegistrations(selTournament) }
+    try { await adminRejectRegistration(regId); toast.success('Refus\u00e9e'); viewRegistrations(selTournament) }
     catch (err) { toast.error(err.message) }
     finally { setActionLoading(null) }
   }
@@ -189,7 +189,7 @@ export default function AdminCalendar() {
         setActionLoading(regId)
         try {
           const promoted = await cancelRegistrationAndPromote(regId, selTournament.id)
-          toast.success(promoted ? `Annulée. ${promoted.player1_name} & ${promoted.player2_name} promus !` : 'Annulée')
+          toast.success(promoted ? `Annul\u00e9e. ${promoted.player1_name} & ${promoted.player2_name} promus !` : 'Annul\u00e9e')
           viewRegistrations(selTournament)
         } catch (err) { toast.error(err.message) }
         finally { setActionLoading(null) }
@@ -210,7 +210,7 @@ export default function AdminCalendar() {
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => openCreateE()}>
-              <Plus className="w-4 h-4 mr-1" />Événement
+              <Plus className="w-4 h-4 mr-1" />\u00c9v\u00e9nement
             </Button>
             <Button size="sm" onClick={() => openCreateT()}>
               <Plus className="w-4 h-4 mr-1" />Tournoi
