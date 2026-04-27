@@ -582,10 +582,12 @@ BEGIN
   END LOOP;
 
   -- 6) FUTUR : insérer 1 booking_player (le créateur, pending) pour chaque résa à venir
+  -- amount = price / 4 (la part) pour permettre à l'admin de valider sans retaper le montant
   INSERT INTO booking_players (
     booking_id, user_id, player_name, parts, payment_method, amount, payment_status, created_at
   )
-  SELECT b.id, b.user_id, b.user_name, 1, 'balance'::payment_method, 0, 'pending', b.created_at
+  SELECT b.id, b.user_id, b.user_name, 1, 'balance'::payment_method,
+         round(b.price / 4.0, 2), 'pending', b.created_at
   FROM bookings b
   WHERE b.date >= CURRENT_DATE
     AND b.date BETWEEN '2026-04-01' AND '2026-05-31'
