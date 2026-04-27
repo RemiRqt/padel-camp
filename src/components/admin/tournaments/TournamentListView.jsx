@@ -3,7 +3,7 @@ import Badge from '@/components/ui/Badge'
 import { Pencil, Trash2, ChevronRight } from 'lucide-react'
 
 const STATUS_COLORS = { draft: 'gray', open: 'success', full: 'warning', closed: 'primary', cancelled: 'danger', completed: 'lime' }
-const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', closed: 'Ferm\u00e9', cancelled: 'Annul\u00e9', completed: 'Termin\u00e9' }
+const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', closed: 'Fermé', cancelled: 'Annulé', completed: 'Terminé' }
 
 export default function TournamentListView({ tournaments, regCounts, onOpenDetail, onEdit, onDelete }) {
   return (
@@ -40,7 +40,7 @@ export default function TournamentListView({ tournaments, regCounts, onOpenDetai
                     <td className="px-4 py-3">
                       <span className={`font-semibold ${count >= t.max_teams ? 'text-warning' : 'text-text'}`}>{count}/{t.max_teams}</span>
                     </td>
-                    <td className="px-4 py-3 text-text-secondary">{t.judge_arbiter || '\u2014'}</td>
+                    <td className="px-4 py-3 text-text-secondary">{t.judge_arbiter || '—'}</td>
                     <td className="px-4 py-3"><Badge color={STATUS_COLORS[t.status]}>{STATUS_LABELS[t.status]}</Badge></td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">
@@ -82,7 +82,7 @@ export default function TournamentListView({ tournaments, regCounts, onOpenDetai
                     <Badge color="primary">{t.level}</Badge>
                     <span className="text-xs text-text-secondary font-medium">{count}/{t.max_teams}</span>
                     {t.judge_arbiter && (
-                      <span className="text-xs text-text-tertiary">{'\u00b7'} {t.judge_arbiter}</span>
+                      <span className="text-xs text-text-tertiary">{'·'} {t.judge_arbiter}</span>
                     )}
                   </div>
                 </div>

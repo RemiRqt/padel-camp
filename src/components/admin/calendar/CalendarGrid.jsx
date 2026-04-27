@@ -3,7 +3,7 @@ import Badge from '@/components/ui/Badge'
 import { Trophy, Star, Users, Trash2 } from 'lucide-react'
 
 const STATUS_COLORS = { draft: 'gray', open: 'success', full: 'warning', closed: 'primary', cancelled: 'danger', completed: 'lime' }
-const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', closed: 'Ferm\u00e9', cancelled: 'Annul\u00e9', completed: 'Termin\u00e9' }
+const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', closed: 'Fermé', cancelled: 'Annulé', completed: 'Terminé' }
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 
 export default function CalendarGrid({

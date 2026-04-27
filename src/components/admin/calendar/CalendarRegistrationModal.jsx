@@ -5,7 +5,7 @@ import { Check, X, ArrowUp, Award } from 'lucide-react'
 
 const REG_LABELS = {
   pending_partner: 'Attente partenaire', pending_admin: 'Attente validation',
-  approved: 'Valid\u00e9e', waitlist: 'File d\'attente', confirmed: 'Confirm\u00e9e', cancelled: 'Annul\u00e9e'
+  approved: 'Validée', waitlist: 'File d\'attente', confirmed: 'Confirmée', cancelled: 'Annulée'
 }
 const REG_COLORS = {
   pending_partner: 'warning', pending_admin: 'warning', approved: 'success',
@@ -23,7 +23,7 @@ export default function CalendarRegistrationModal({
   const activeRegs = sortedRegs.filter((r) => r.status !== 'cancelled')
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Inscriptions \u2014 ${tournament?.name || ''}`} className="!max-w-lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={`Inscriptions — ${tournament?.name || ''}`} className="!max-w-lg">
       {tournament && (
         <div className="space-y-4">
           <div className="flex items-center justify-between py-2 px-3 rounded-[10px] bg-bg">

@@ -18,7 +18,7 @@ import TournamentListView from '@/components/admin/tournaments/TournamentListVie
 import toast from 'react-hot-toast'
 import { Trophy, Plus } from 'lucide-react'
 
-const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', closed: 'Ferm\u00e9', cancelled: 'Annul\u00e9', completed: 'Termin\u00e9' }
+const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', closed: 'Fermé', cancelled: 'Annulé', completed: 'Terminé' }
 
 const INITIAL_FORM = {
   name: '', description: '', date: '', start_time: '09:00', end_time: '18:00',
@@ -74,12 +74,12 @@ export default function AdminTournaments() {
   const handleSave = async () => {
     if (!form.name || !form.date) { toast.error('Nom et date requis'); return }
     const maxTeams = parseInt(form.max_teams)
-    if (isNaN(maxTeams) || maxTeams < 2) { toast.error('Max \u00e9quipes doit \u00eatre \u2265 2'); return }
+    if (isNaN(maxTeams) || maxTeams < 2) { toast.error('Max équipes doit être ≥ 2'); return }
     setSaving(true)
     try {
       const data = { ...form, max_teams: maxTeams, registration_deadline: form.registration_deadline || null }
       await saveTournament(editing?.id, data)
-      toast.success(editing ? 'Tournoi mis \u00e0 jour' : 'Tournoi cr\u00e9\u00e9')
+      toast.success(editing ? 'Tournoi mis à jour' : 'Tournoi créé')
       setModalOpen(false)
       fetchAll()
     } catch (err) { toast.error(err.message) }
@@ -95,7 +95,7 @@ export default function AdminTournaments() {
       onConfirm: async () => {
         try {
           await deleteTournament(t.id)
-          toast.success('Supprim\u00e9'); fetchAll()
+          toast.success('Supprimé'); fetchAll()
         } catch (err) { toast.error(err.message) }
       },
     })
@@ -120,7 +120,7 @@ export default function AdminTournaments() {
     setActionLoading(regId)
     try {
       const result = await adminValidateRegistration(regId, selectedTournament.id, selectedTournament.max_teams)
-      toast.success(result.status === 'waitlist' ? `File d'attente (position #${result.position})` : 'Inscription valid\u00e9e')
+      toast.success(result.status === 'waitlist' ? `File d'attente (position #${result.position})` : 'Inscription validée')
       refreshRegistrations()
     } catch (err) { toast.error(err.message) }
     finally { setActionLoading(null) }
@@ -130,7 +130,7 @@ export default function AdminTournaments() {
     setActionLoading(regId)
     try {
       await adminRejectRegistration(regId)
-      toast.success('Inscription refus\u00e9e')
+      toast.success('Inscription refusée')
       refreshRegistrations()
     } catch (err) { toast.error(err.message) }
     finally { setActionLoading(null) }
@@ -146,7 +146,7 @@ export default function AdminTournaments() {
         setActionLoading(regId)
         try {
           const promoted = await cancelRegistrationAndPromote(regId, selectedTournament.id)
-          toast.success(promoted ? `Annul\u00e9e. ${promoted.player1_name} & ${promoted.player2_name} promus !` : 'Inscription annul\u00e9e')
+          toast.success(promoted ? `Annulée. ${promoted.player1_name} & ${promoted.player2_name} promus !` : 'Inscription annulée')
           refreshRegistrations()
         } catch (err) { toast.error(err.message) }
         finally { setActionLoading(null) }
@@ -157,7 +157,7 @@ export default function AdminTournaments() {
   // --- Exports ---
   const exportCols = [
     { key: 'name', label: 'Tournoi' }, { key: 'date', label: 'Date' },
-    { key: 'level', label: 'Niveau' }, { key: 'category', label: 'Cat\u00e9gorie' },
+    { key: 'level', label: 'Niveau' }, { key: 'category', label: 'Catégorie' },
     { key: 'teams', label: 'Inscriptions' }, { key: 'max', label: 'Max' },
     { key: 'status', label: 'Statut' },
   ]
@@ -205,9 +205,9 @@ export default function AdminTournaments() {
           <div className="flex items-center gap-2">
             <ExportButtons
               onExcel={() => exportExcel(exportRows, exportCols, 'tournois')}
-              onPDF={() => exportPDF(exportRows, exportCols, 'tournois', 'Padel Camp \u2014 Tournois')}
+              onPDF={() => exportPDF(exportRows, exportCols, 'tournois', 'Padel Camp — Tournois')}
             />
-            <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Cr\u00e9er</Button>
+            <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Créer</Button>
           </div>
         </div>
 

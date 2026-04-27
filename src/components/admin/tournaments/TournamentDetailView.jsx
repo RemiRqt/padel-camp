@@ -17,7 +17,7 @@ const STATUS_LABELS = { draft: 'Brouillon', open: 'Ouvert', full: 'Complet', clo
 const CAT_LABELS = { hommes: 'Hommes', femmes: 'Femmes', mixte: 'Mixte' }
 const REG_LABELS = {
   pending_partner: 'Attente partenaire', pending_admin: 'Attente validation',
-  approved: 'Valid\u00e9e', waitlist: 'File d\'attente', confirmed: 'Confirm\u00e9e', cancelled: 'Annul\u00e9e'
+  approved: 'Validée', waitlist: 'File d\'attente', confirmed: 'Confirmée', cancelled: 'Annulée'
 }
 const REG_COLORS = {
   pending_partner: 'warning', pending_admin: 'warning', approved: 'success',
@@ -105,7 +105,7 @@ export default function TournamentDetailView({
           </Card>
           <Card className="!p-3 text-center">
             <p className="text-[10px] text-text-tertiary uppercase font-medium">Juge-Arbitre</p>
-            <p className="text-sm font-bold text-text mt-0.5">{t.judge_arbiter || '\u2014'}</p>
+            <p className="text-sm font-bold text-text mt-0.5">{t.judge_arbiter || '—'}</p>
           </Card>
         </div>
 
@@ -125,7 +125,7 @@ export default function TournamentDetailView({
           </div>
           <ExportButtons
             onExcel={() => exportExcel(regExportRows, regExportCols, `inscriptions_${t.name}`)}
-            onPDF={() => exportPDF(regExportRows, regExportCols, `inscriptions_${t.name}`, `Inscriptions \u2014 ${t.name}`)}
+            onPDF={() => exportPDF(regExportRows, regExportCols, `inscriptions_${t.name}`, `Inscriptions — ${t.name}`)}
           />
         </div>
 
@@ -163,10 +163,10 @@ export default function TournamentDetailView({
                       {reg.status === 'approved' && (
                         <div className="flex gap-3 mt-1.5 text-[11px]">
                           <span className={reg.player1_confirmed ? 'text-success' : 'text-text-tertiary'}>
-                            {reg.player1_confirmed ? '\u2713' : '\u25CB'} {reg.player1_name.split(' ')[0]}
+                            {reg.player1_confirmed ? '✓' : '○'} {reg.player1_name.split(' ')[0]}
                           </span>
                           <span className={reg.player2_confirmed ? 'text-success' : 'text-text-tertiary'}>
-                            {reg.player2_confirmed ? '\u2713' : '\u25CB'} {reg.player2_name.split(' ')[0]}
+                            {reg.player2_confirmed ? '✓' : '○'} {reg.player2_name.split(' ')[0]}
                           </span>
                         </div>
                       )}
@@ -214,13 +214,13 @@ export default function TournamentDetailView({
         {cancelledRegs.length > 0 && (
           <details className="text-xs">
             <summary className="cursor-pointer text-text-tertiary font-medium">
-              {cancelledRegs.length} inscription{cancelledRegs.length > 1 ? 's' : ''} annul\u00e9e{cancelledRegs.length > 1 ? 's' : ''}
+              {cancelledRegs.length} inscription{cancelledRegs.length > 1 ? 's' : ''} annulée{cancelledRegs.length > 1 ? 's' : ''}
             </summary>
             <div className="mt-2 space-y-1">
               {cancelledRegs.map((reg) => (
                 <div key={reg.id} className="flex items-center justify-between py-2 px-3 rounded-[12px] bg-bg opacity-60">
                   <span className="text-text-secondary">{reg.player1_name} & {reg.player2_name}</span>
-                  <Badge color="danger">Annul\u00e9e</Badge>
+                  <Badge color="danger">Annulée</Badge>
                 </div>
               ))}
             </div>
