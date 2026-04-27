@@ -25,6 +25,8 @@ export default function AdminMembers() {
   const PAGE_SIZE = 20
 
   // Modals
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [detailMember, setDetailMember] = useState(null)
   const [creditOpen, setCreditOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [selectedMember, setSelectedMember] = useState(null)
@@ -198,7 +200,11 @@ export default function AdminMembers() {
               {filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((m) => {
                 const total = parseFloat(m.balance) + parseFloat(m.balance_bonus)
                 return (
-                  <Card key={m.id} className="!p-4">
+                  <Card
+                    key={m.id}
+                    className="!p-4 cursor-pointer hover:shadow-[0_4px_12px_rgba(11,39,120,0.08)] transition-shadow"
+                    onClick={() => { setDetailMember(m); setDetailOpen(true) }}
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <span className="text-lg font-bold text-primary">
@@ -219,7 +225,7 @@ export default function AdminMembers() {
                         )}
                       </div>
                       <button
-                        onClick={() => openCredit(m)}
+                        onClick={(e) => { e.stopPropagation(); openCredit(m) }}
                         className="p-2 rounded-[10px] hover:bg-bg transition-colors cursor-pointer"
                         title="Créditer"
                       >
@@ -243,6 +249,67 @@ export default function AdminMembers() {
         paymentMethod={paymentMethod} setPaymentMethod={setPaymentMethod}
         crediting={crediting} onCredit={handleCredit}
       />
+
+      {/* Modal détail membre */}
+      <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title={detailMember?.display_name || 'Membre'}>
+        {detailMember && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-separator">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <span className="text-2xl font-bold text-primary">
+                  {detailMember.display_name?.charAt(0)?.toUpperCase() || '?'}
+                </span>
+              </div>
+              <div>
+                <p className="font-semibold text-text">{detailMember.display_name}</p>
+                <p className="text-xs text-text-secondary">{detailMember.email}</p>
+                {detailMember.role === 'admin' && (
+                  <Badge color="primary" className="mt-1"><Shield className="w-3 h-3 mr-0.5 inline" />Admin</Badge>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-xs text-text-tertiary mb-0.5">Téléphone</p>
+                <p className="text-sm font-medium text-text">{detailMember.phone || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-text-tertiary mb-0.5">Licence FFT</p>
+                <p className="text-sm font-medium text-text">{detailMember.license_number || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-text-tertiary mb-0.5">Solde réel</p>
+                <p className="text-sm font-bold text-primary">{parseFloat(detailMember.balance).toFixed(2)} €</p>
+              </div>
+              <div>
+                <p className="text-xs text-text-tertiary mb-0.5">Bonus</p>
+                <p className="text-sm font-bold text-lime-dark">{parseFloat(detailMember.balance_bonus).toFixed(2)} €</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-text-tertiary mb-0.5">Solde total</p>
+                <p className="text-lg font-bold text-primary">
+                  {(parseFloat(detailMember.balance) + parseFloat(detailMember.balance_bonus)).toFixed(2)} €
+                </p>
+              </div>
+              {detailMember.created_at && (
+                <div className="col-span-2">
+                  <p className="text-xs text-text-tertiary mb-0.5">Membre depuis</p>
+                  <p className="text-sm text-text-secondary">
+                    {new Date(detailMember.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-3 border-t border-separator">
+              <Button className="flex-1" onClick={() => { setDetailOpen(false); openCredit(detailMember) }}>
+                <Wallet className="w-4 h-4 mr-1.5" />Créditer
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal créer membre */}
       <Modal
