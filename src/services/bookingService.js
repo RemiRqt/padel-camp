@@ -225,14 +225,13 @@ export async function payPlayerShare({ playerId, bookingId, userId, amount, perf
  * Mark a player's share as paid externally (CB/cash)
  */
 export async function markPlayerExternal({ playerId, bookingId, paymentMethod, amount, playerName, performedBy }) {
-  const { error: txErr } = await supabase.from('transactions').insert({
-    user_id: null,
-    type: 'external_payment',
-    amount,
-    description: `Session — ${playerName} (${paymentMethod})`,
-    performed_by: performedBy,
-    booking_id: bookingId,
-    payment_method: paymentMethod,
+  const { error: txErr } = await supabase.rpc('record_external_transaction', {
+    p_amount: amount,
+    p_type: 'external_payment',
+    p_description: `Session — ${playerName} (${paymentMethod})`,
+    p_performed_by: performedBy,
+    p_payment_method: paymentMethod,
+    p_booking_id: bookingId,
   })
   if (txErr) throw txErr
 
@@ -494,11 +493,14 @@ export async function adminSellProduct({ buyerId, amount, description, performed
     })
     if (error) throw error
   } else {
-    const { error } = await supabase.from('transactions').insert({
-      user_id: buyerId || null,
-      type: buyerId ? 'debit_product' : 'external_payment',
-      amount, description,
-      performed_by: performedBy, product_id: productId, payment_method: paymentMethod,
+    const { error } = await supabase.rpc('record_external_transaction', {
+      p_amount: amount,
+      p_type: buyerId ? 'debit_product' : 'external_payment',
+      p_description: description,
+      p_performed_by: performedBy,
+      p_payment_method: paymentMethod,
+      p_user_id: buyerId || null,
+      p_product_id: productId,
     })
     if (error) throw error
   }
