@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Préparer la base actuelle pour la démo de mercredi 29/04 — 30 membres fictifs supplémentaires, planning avril 70% + mai dégressif, règlements complets sur sessions passées, recharges, ventes POS, TVA variées — et passer un check sécurité rapide. Tout doit être sur `master` pour que `padel-camp-iota.vercel.app` soit présentable.
+**Goal:** Préparer la base actuelle pour la démo de mercredi 29/04 — 10 membres fictifs supplémentaires (en gardant les existants), planning avril 70% + mai dégressif, règlements complets sur sessions passées, recharges, ventes POS, TVA variées — et passer un check sécurité rapide. Tout doit être sur `master` pour que `padel-camp-iota.vercel.app` soit présentable.
 
 **Architecture :** Une seule migration SQL idempotente `012_demo_polish.sql`, mêmes patterns que `004_seed_data.sql` (DO block, `auth.users` + trigger `handle_new_user`, `crypt('password123', gen_salt('bf'))`). Exécutée manuellement dans Supabase SQL Editor. Le check sécurité = grep + lecture rapide, pas d'audit.
 
@@ -16,7 +16,7 @@
 
 | Fichier | Rôle | Action |
 |---|---|---|
-| `supabase/migrations/012_demo_polish.sql` | Seed additionnel : 30 membres + résas + règlements + recharges + ventes POS | Créer |
+| `supabase/migrations/012_demo_polish.sql` | Seed additionnel : 10 membres + résas + règlements + recharges + ventes POS | Créer |
 | `supabase/migrations/013_demo_tva_variation.sql` | Diversifier les TVA des produits existants si nécessaire | Créer (conditionnel) |
 | (lecture) `supabase/migrations/001_initial_schema.sql` | Référence des structures de tables | Lire |
 | (lecture) `supabase/migrations/004_seed_data.sql` | Pattern SQL à réutiliser | Lire |
@@ -78,7 +78,7 @@ Si rien n'a été modifié, sauter le commit.
 **Files:**
 - Create: `supabase/migrations/012_demo_polish.sql`
 
-- [ ] **Step 1: Créer le fichier avec en-tête + bloc DO et UUIDs des 30 nouveaux membres**
+- [ ] **Step 1: Créer le fichier avec en-tête + bloc DO et UUIDs des 10 nouveaux membres**
 
 ```sql
 -- ============================================
@@ -88,11 +88,12 @@ Si rien n'a été modifié, sauter le commit.
 -- Exécution : Supabase Studio SQL Editor sur le projet volranoojbqeramwldaf
 -- Préfixe UUIDs membres démo : a2000000-...
 -- Email domain : @demo.padelcamp.test
+-- Conserve les membres existants (a1000000-*) et en ajoute 10 nouveaux.
 -- ============================================
 
 DO $$
 DECLARE
-  -- 30 nouveaux membres démo, UUIDs fixes pour idempotence
+  -- 10 nouveaux membres démo, UUIDs fixes pour idempotence
   demo_members UUID[] := ARRAY[
     'a2000000-0000-0000-0000-000000000001'::UUID,
     'a2000000-0000-0000-0000-000000000002'::UUID,
@@ -103,37 +104,13 @@ DECLARE
     'a2000000-0000-0000-0000-000000000007'::UUID,
     'a2000000-0000-0000-0000-000000000008'::UUID,
     'a2000000-0000-0000-0000-000000000009'::UUID,
-    'a2000000-0000-0000-0000-000000000010'::UUID,
-    'a2000000-0000-0000-0000-000000000011'::UUID,
-    'a2000000-0000-0000-0000-000000000012'::UUID,
-    'a2000000-0000-0000-0000-000000000013'::UUID,
-    'a2000000-0000-0000-0000-000000000014'::UUID,
-    'a2000000-0000-0000-0000-000000000015'::UUID,
-    'a2000000-0000-0000-0000-000000000016'::UUID,
-    'a2000000-0000-0000-0000-000000000017'::UUID,
-    'a2000000-0000-0000-0000-000000000018'::UUID,
-    'a2000000-0000-0000-0000-000000000019'::UUID,
-    'a2000000-0000-0000-0000-000000000020'::UUID,
-    'a2000000-0000-0000-0000-000000000021'::UUID,
-    'a2000000-0000-0000-0000-000000000022'::UUID,
-    'a2000000-0000-0000-0000-000000000023'::UUID,
-    'a2000000-0000-0000-0000-000000000024'::UUID,
-    'a2000000-0000-0000-0000-000000000025'::UUID,
-    'a2000000-0000-0000-0000-000000000026'::UUID,
-    'a2000000-0000-0000-0000-000000000027'::UUID,
-    'a2000000-0000-0000-0000-000000000028'::UUID,
-    'a2000000-0000-0000-0000-000000000029'::UUID,
-    'a2000000-0000-0000-0000-000000000030'::UUID
+    'a2000000-0000-0000-0000-000000000010'::UUID
   ];
   demo_first_names TEXT[] := ARRAY[
-    'Léa','Hugo','Chloé','Nathan','Manon','Enzo','Inès','Tom','Jade','Raphaël',
-    'Louise','Arthur','Alice','Gabriel','Rose','Liam','Emma','Adam','Mila','Léo',
-    'Ambre','Noah','Anna','Maël','Eva','Sacha','Lola','Ethan','Zoé','Aaron'
+    'Léa','Hugo','Chloé','Nathan','Manon','Enzo','Inès','Tom','Jade','Raphaël'
   ];
   demo_last_names TEXT[] := ARRAY[
-    'Lefevre','Mercier','Faure','Andre','Mercier','Blanc','Guerin','Boyer','Garnier','Chevalier',
-    'Francois','Legrand','Gauthier','Garcia','Perrin','Robin','Clement','Morin','Nicolas','Henry',
-    'Roussel','Mathieu','Gautier','Masson','Marchand','Duval','Denis','Dumont','Marie','Lemoine'
+    'Lefevre','Mercier','Faure','Andre','Bonnet','Blanc','Guerin','Boyer','Garnier','Chevalier'
   ];
 BEGIN
   -- Le contenu sera ajouté dans les tâches suivantes (membres → résas → règlements → recharges → ventes)
@@ -149,7 +126,7 @@ Coller le bloc, exécuter. Doit afficher `NOTICE: Stub OK`. Pas d'erreur de synt
 
 ```bash
 git add supabase/migrations/012_demo_polish.sql
-git commit -m "Demo polish : squelette migration 012 (30 membres démo prévus)"
+git commit -m "Demo polish : squelette migration 012 (10 membres démo prévus)"
 ```
 
 ---
@@ -165,10 +142,10 @@ Avant la ligne `RAISE NOTICE 'Stub OK...'`, remplacer par :
 
 ```sql
   -- ============================================
-  -- 30 nouveaux membres dans auth.users (mot de passe = 'demo2026')
+  -- 10 nouveaux membres dans auth.users (mot de passe = 'demo2026')
   -- Le trigger handle_new_user crée automatiquement un profile
   -- ============================================
-  FOR i IN 1..30 LOOP
+  FOR i IN 1..10 LOOP
     INSERT INTO auth.users (
       id, instance_id, email, encrypted_password,
       email_confirmed_at, role, aud, created_at, updated_at, raw_user_meta_data
@@ -192,8 +169,8 @@ Avant la ligne `RAISE NOTICE 'Stub OK...'`, remplacer par :
   PERFORM pg_sleep(0.5);
 
   -- Mettre à jour les profils avec données démo cohérentes
-  -- 27 membres standard + 2 admins/staff + 1 inactif (= 30 total)
-  FOR i IN 1..30 LOOP
+  -- 9 membres standard + 1 admin démo (= 10 total nouveaux, en plus des existants)
+  FOR i IN 1..10 LOOP
     UPDATE profiles SET
       display_name = demo_first_names[i] || ' ' || demo_last_names[i],
       first_name = demo_first_names[i],
@@ -203,8 +180,7 @@ Avant la ligne `RAISE NOTICE 'Stub OK...'`, remplacer par :
       balance = (50 + (i * 7) % 200)::DECIMAL,
       balance_bonus = ((i * 11) % 50)::DECIMAL,
       role = CASE
-        WHEN i = 29 THEN 'admin'::user_role        -- 1 admin démo
-        WHEN i = 30 THEN 'admin'::user_role        -- 1 admin démo
+        WHEN i = 10 THEN 'admin'::user_role        -- 1 admin démo
         ELSE 'member'::user_role
       END
     WHERE id = demo_members[i];
@@ -221,20 +197,20 @@ Vérifier output : pas d'erreur, NOTICE `Stub OK` désormais absent.
 
 ```sql
 SELECT count(*) FROM auth.users WHERE email LIKE '%@demo.padelcamp.test';
--- Attendu : 30
+-- Attendu : 10
 
 SELECT count(*) FROM profiles WHERE id::TEXT LIKE 'a2000000-%';
--- Attendu : 30
+-- Attendu : 10
 
 SELECT count(*) FROM profiles WHERE role = 'admin' AND id::TEXT LIKE 'a2000000-%';
--- Attendu : 2
+-- Attendu : 1
 ```
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add supabase/migrations/012_demo_polish.sql
-git commit -m "Demo polish : 30 membres démo (27 members + 2 admins + 1 inactif)"
+git commit -m "Demo polish : 10 membres démo (9 members + 1 admin)"
 ```
 
 ---
@@ -277,11 +253,11 @@ Noter les `slot_starts`, `slot_ends`, `prices` réels du club. Si la structure d
     fill_rate FLOAT;
     week_of_may INT;
   BEGIN
-    -- Construire le pool : 10 anciens + 30 nouveaux = 40 membres pour piochage
+    -- Construire le pool : tous les membres existants + 10 nouveaux démo, hors admin réel rranquet@gmail.com
     SELECT array_agg(id ORDER BY id), array_agg(display_name ORDER BY id)
     INTO all_members, all_names
     FROM profiles
-    WHERE id::TEXT LIKE 'a1000000-%' OR id::TEXT LIKE 'a2000000-%';
+    WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com');
 
     -- Avril 2026 : 70% partout
     FOR d IN SELECT generate_series('2026-04-01'::DATE, '2026-04-30'::DATE, '1 day'::INTERVAL)::DATE LOOP
@@ -407,7 +383,7 @@ Noter les paramètres exacts (ordre, types). À adapter dans le bloc ci-dessous.
     -- Pool de joueurs (mêmes que résas)
     SELECT array_agg(id ORDER BY id) INTO all_members
     FROM profiles
-    WHERE id::TEXT LIKE 'a1000000-%' OR id::TEXT LIKE 'a2000000-%';
+    WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com');
 
     -- Un admin pour les RPC external_payment (performed_by)
     SELECT id INTO admin_id FROM profiles WHERE role = 'admin' LIMIT 1;
@@ -519,7 +495,7 @@ Toujours dans le DO block, à la suite :
     SELECT array_agg(id) INTO recharge_member_pool
     FROM (
       SELECT id FROM profiles
-      WHERE id::TEXT LIKE 'a1000000-%' OR id::TEXT LIKE 'a2000000-%'
+      WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com')
       ORDER BY random()
       LIMIT 18
     ) sub;
@@ -577,7 +553,7 @@ Toujours dans le DO block, à la suite :
   BEGIN
     SELECT id INTO admin_id FROM profiles WHERE role = 'admin' LIMIT 1;
     SELECT array_agg(id) INTO all_members
-    FROM profiles WHERE id::TEXT LIKE 'a1000000-%' OR id::TEXT LIKE 'a2000000-%';
+    FROM profiles WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com');
 
     FOR d IN SELECT generate_series('2026-04-01'::DATE, CURRENT_DATE - 1, '1 day'::INTERVAL)::DATE LOOP
       nb_sales := 2 + floor(random() * 4)::INT;  -- 2 à 5 ventes
