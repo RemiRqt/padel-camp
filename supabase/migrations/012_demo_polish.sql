@@ -596,3 +596,108 @@ BEGIN
   RAISE NOTICE 'Task 5c OK : prix corrigés, % booking_players passés re-créés, % créateurs ajoutés sur résas futures',
     total_bp, future_inserted;
 END $$;
+
+-- ============================================
+-- Task 6 : ventes POS sur la période passée (2-5 ventes/jour)
+-- Mix paiement : 60% wallet / 25% CB / 15% cash (avec fallback CB si solde insuffisant)
+-- Idempotent : skip si déjà beaucoup de transactions de type debit_product sur la période
+-- ============================================
+DO $$
+DECLARE
+  d DATE;
+  nb_sales INT;
+  prod RECORD;
+  pool UUID[];
+  buyer_id UUID;
+  qty INT;
+  total_amt DECIMAL;
+  pay_method TEXT;
+  r FLOAT;
+  v_balance DECIMAL;
+  v_balance_bonus DECIMAL;
+  v_bonus_used DECIMAL;
+  v_real_used DECIMAL;
+  sale_ts TIMESTAMPTZ;
+  admin_id UUID;
+  total INT := 0;
+BEGIN
+  IF (SELECT count(*) FROM transactions
+      WHERE type = 'debit_product'
+        AND created_at BETWEEN '2026-04-01' AND '2026-04-27') > 30 THEN
+    RAISE NOTICE 'Task 6 SKIP : ventes POS démo déjà présentes';
+    RETURN;
+  END IF;
+
+  SELECT id INTO admin_id FROM profiles WHERE role = 'admin' ORDER BY created_at LIMIT 1;
+
+  SELECT array_agg(id) INTO pool
+  FROM profiles
+  WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com');
+
+  FOR d IN SELECT generate_series('2026-04-01'::DATE, (CURRENT_DATE - 1)::DATE, '1 day'::INTERVAL)::DATE LOOP
+    nb_sales := 2 + floor(random() * 4)::INT;  -- 2 à 5
+    FOR i IN 1..nb_sales LOOP
+      SELECT id, name, price INTO prod
+      FROM products
+      WHERE is_active = true
+      ORDER BY random()
+      LIMIT 1;
+
+      IF prod IS NULL THEN
+        RAISE EXCEPTION 'Aucun produit actif trouvé';
+      END IF;
+
+      qty := 1 + floor(random() * 2)::INT;  -- 1 ou 2
+      total_amt := prod.price * qty;
+      buyer_id := pool[floor(random() * array_length(pool, 1))::INT + 1];
+      sale_ts := d::TIMESTAMPTZ + (8 + random() * 14) * INTERVAL '1 hour';  -- entre 8h et 22h
+
+      r := random();
+      IF r < 0.60 THEN pay_method := 'balance';
+      ELSIF r < 0.85 THEN pay_method := 'cb';
+      ELSE pay_method := 'cash';
+      END IF;
+
+      IF pay_method = 'balance' THEN
+        SELECT balance, balance_bonus INTO v_balance, v_balance_bonus
+        FROM profiles WHERE id = buyer_id FOR UPDATE;
+        IF (v_balance + v_balance_bonus) < total_amt THEN
+          pay_method := 'cb';  -- fallback
+        END IF;
+      END IF;
+
+      IF pay_method = 'balance' THEN
+        IF v_balance_bonus >= total_amt THEN
+          v_bonus_used := total_amt; v_real_used := 0;
+        ELSE
+          v_bonus_used := v_balance_bonus; v_real_used := total_amt - v_balance_bonus;
+        END IF;
+        UPDATE profiles SET
+          balance = balance - v_real_used,
+          balance_bonus = balance_bonus - v_bonus_used
+        WHERE id = buyer_id;
+
+        INSERT INTO transactions (
+          user_id, type, amount, bonus_used, real_used,
+          description, performed_by, product_id, payment_method, parts_count, created_at
+        ) VALUES (
+          buyer_id, 'debit_product', total_amt, v_bonus_used, v_real_used,
+          qty || 'x ' || prod.name, admin_id, prod.id, 'balance', qty, sale_ts
+        );
+      ELSE
+        INSERT INTO transactions (
+          user_id, type, amount, description, performed_by, product_id,
+          payment_method, parts_count, created_at
+        ) VALUES (
+          buyer_id, 'external_payment', total_amt,
+          qty || 'x ' || prod.name, admin_id, prod.id,
+          pay_method::payment_method, qty, sale_ts
+        );
+      END IF;
+
+      total := total + 1;
+    END LOOP;
+  END LOOP;
+
+  RAISE NOTICE 'Task 6 OK : % ventes POS sur la période', total;
+END $$;
