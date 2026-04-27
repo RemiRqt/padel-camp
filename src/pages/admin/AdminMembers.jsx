@@ -113,7 +113,7 @@ export default function AdminMembers() {
       const description = creditMode === 'formula'
         ? `Recharge formule ${amountPaid}€ → ${amountCredited}€ (${methodLabel})`
         : `Crédit libre ${amountPaid}€ (${methodLabel})`
-      await creditMember(selectedMember.id, adminUser.id, amountPaid, amountCredited, description)
+      await creditMember(selectedMember.id, adminUser.id, amountPaid, amountCredited, description, paymentMethod)
 
       toast.success(`${selectedMember.display_name} crédité de ${amountPaid}€`)
       setCreditOpen(false)

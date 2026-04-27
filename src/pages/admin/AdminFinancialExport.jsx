@@ -13,7 +13,7 @@ const TYPE_LABELS = {
   credit: 'Rechargement',
   external_payment: 'Ext.',
 }
-const METHOD_LABELS = { wallet: 'Wallet', card: 'CB', cash: 'Espèces' }
+const METHOD_LABELS = { balance: 'Wallet', cb: 'CB', cash: 'Espèces', mixed: 'Mixte' }
 
 const TX_COLUMNS = [
   { label: 'Date', key: 'date' },
@@ -45,17 +45,38 @@ function computeKPIs(txs) {
   const sessions = txs.filter((t) => t.type === 'debit_session')
   const articles = txs.filter((t) => t.type === 'debit_product')
   const recharges = txs.filter((t) => t.type === 'credit')
-  const encaissements = [
-    ...recharges.map((t) => t.formula_amount_paid || 0),
-    ...txs.filter((t) => t.payment_method === 'card' || t.payment_method === 'cash').map((t) => t.real_used || 0),
-  ]
+  const externals = txs.filter((t) => t.type === 'external_payment')
+
   const sumHt = (arr) => arr.reduce((s, t) => s + (Number(t.amount_ht) || 0), 0)
   const sumTtc = (arr) => arr.reduce((s, t) => s + (Number(t.amount) || 0), 0)
+  const sumByMethod = (method) => txs
+    .filter((t) => t.payment_method === method)
+    .reduce((s, t) => s + (Number(t.amount) || 0), 0)
+
+  // Encaissements caisse réels = tout ce qui est entré en CB ou Espèces
+  // (rechargements + sessions/articles payés directement + paiements externes)
+  const encaissementsCb = sumByMethod('cb')
+  const encaissementsCash = sumByMethod('cash')
+  const encaissementsTotal = encaissementsCb + encaissementsCash
+
+  // Conso wallet = ce qui a été dépensé depuis le solde (déjà encaissé via recharge antérieure)
+  const consoWallet = sessions.filter((t) => t.payment_method === 'balance').reduce((s, t) => s + (Number(t.amount) || 0), 0)
+                    + articles.filter((t) => t.payment_method === 'balance').reduce((s, t) => s + (Number(t.amount) || 0), 0)
+
   return {
     sessions: { count: sessions.length, total: sumTtc(sessions), ht: sumHt(sessions) },
     articles: { count: articles.length, total: sumTtc(articles), ht: sumHt(articles) },
-    recharges: { count: recharges.length, total: recharges.reduce((s, t) => s + (t.formula_amount_paid || 0), 0) },
-    encaissements: encaissements.reduce((s, v) => s + v, 0),
+    recharges: {
+      count: recharges.length,
+      total: recharges.reduce((s, t) => s + (Number(t.amount) || 0), 0),
+      cb: recharges.filter((t) => t.payment_method === 'cb').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+      cash: recharges.filter((t) => t.payment_method === 'cash').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+    },
+    externals: { count: externals.length, total: sumTtc(externals) },
+    consoWallet,
+    encaissementsCb,
+    encaissementsCash,
+    encaissementsTotal,
   }
 }
 
@@ -124,12 +145,7 @@ export default function AdminFinancialExport() {
   const totalTvaCollected = tvaBreakdown.reduce((s, b) => s + b.tva, 0)
 
   const filteredTxs = activeTab === 'all' ? txs
-    : txs.filter((t) => {
-        if (activeTab === 'wallet') return t.payment_method === 'wallet'
-        if (activeTab === 'card') return t.payment_method === 'card'
-        if (activeTab === 'cash') return t.payment_method === 'cash'
-        return true
-      })
+    : txs.filter((t) => t.payment_method === activeTab)
 
   const handleExcelExport = async () => {
     setExporting(true)
@@ -138,8 +154,8 @@ export default function AdminFinancialExport() {
       const byMethod = (m) => txs.filter((t) => t.payment_method === m).map(formatTx)
       await exportExcelMultiSheet([
         { name: 'Toutes', columns: TX_COLUMNS, data: txs.map(formatTx) },
-        { name: 'Wallet', columns: TX_COLUMNS, data: byMethod('wallet') },
-        { name: 'CB', columns: TX_COLUMNS, data: byMethod('card') },
+        { name: 'Wallet', columns: TX_COLUMNS, data: byMethod('balance') },
+        { name: 'CB', columns: TX_COLUMNS, data: byMethod('cb') },
         { name: 'Espèces', columns: TX_COLUMNS, data: byMethod('cash') },
         { name: 'Déclaration TVA', columns: TVA_SUMMARY_COLUMNS, data: tvaBreakdown.map(formatSummary) },
       ], `rapport-financier-${from}-${to}`)
@@ -165,11 +181,12 @@ export default function AdminFinancialExport() {
     finally { setExporting(false) }
   }
 
+  const countMethod = (m) => txs.filter((t) => t.payment_method === m).length
   const tabs = [
     { id: 'all', label: `Tout (${txs.length})` },
-    { id: 'wallet', label: `Wallet (${txs.filter((t) => t.payment_method === 'wallet').length})` },
-    { id: 'card', label: `CB (${txs.filter((t) => t.payment_method === 'card').length})` },
-    { id: 'cash', label: `Espèces (${txs.filter((t) => t.payment_method === 'cash').length})` },
+    { id: 'balance', label: `Wallet (${countMethod('balance')})` },
+    { id: 'cb', label: `CB (${countMethod('cb')})` },
+    { id: 'cash', label: `Espèces (${countMethod('cash')})` },
   ]
 
   const filteredTotal = filteredTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0)
@@ -203,17 +220,40 @@ export default function AdminFinancialExport() {
           </div>
         </Card>
 
-        {/* KPIs */}
+        {/* KPIs Activité */}
         <div className="grid grid-cols-2 gap-3">
           <KPICard label="Sessions" count={kpis.sessions.count} total={kpis.sessions.total} ht={kpis.sessions.ht} />
           <KPICard label="Articles" count={kpis.articles.count} total={kpis.articles.total} ht={kpis.articles.ht} />
-          <KPICard label="Rechargements" count={kpis.recharges.count} total={kpis.recharges.total} sub="encaissé" />
-          <Card elevated>
-            <p className="text-xs text-text-tertiary mb-1">Encaissements réels</p>
-            <p className="text-xl font-bold text-primary">{kpis.encaissements.toFixed(2)} €</p>
-            <p className="text-xs text-text-secondary">CB + espèces</p>
-          </Card>
+          <KPICard label="Rechargements" count={kpis.recharges.count} total={kpis.recharges.total}
+            sub={`CB ${kpis.recharges.cb.toFixed(2)}€ · Esp. ${kpis.recharges.cash.toFixed(2)}€`} />
+          <KPICard label="Paiements externes" count={kpis.externals.count} total={kpis.externals.total} sub="non-membres" />
         </div>
+
+        {/* Encaissements caisse — argent réellement entré */}
+        <Card elevated>
+          <p className="text-xs font-semibold text-text-secondary uppercase mb-2">Encaissements caisse</p>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <p className="text-xs text-text-tertiary">CB</p>
+              <p className="text-lg font-bold text-primary">{kpis.encaissementsCb.toFixed(2)} €</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-tertiary">Espèces</p>
+              <p className="text-lg font-bold text-primary">{kpis.encaissementsCash.toFixed(2)} €</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-tertiary">Total</p>
+              <p className="text-lg font-bold text-lime-600">{kpis.encaissementsTotal.toFixed(2)} €</p>
+            </div>
+          </div>
+          <p className="text-xs text-text-tertiary mt-2">
+            Argent réellement entré dans la caisse (rechargements + paiements directs CB/Espèces).
+          </p>
+          <div className="mt-3 pt-3 border-t border-separator flex justify-between text-xs">
+            <span className="text-text-secondary">Conso wallet (déjà encaissée via recharges antérieures)</span>
+            <span className="font-semibold text-text">{kpis.consoWallet.toFixed(2)} €</span>
+          </div>
+        </Card>
 
         {/* Récap TVA collectée */}
         <Card elevated>

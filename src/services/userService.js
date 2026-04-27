@@ -64,13 +64,14 @@ export async function updateProfile(userId, updates) {
   if (error) throw error
 }
 
-export async function creditMember(memberId, adminId, amountPaid, amountCredited, description) {
+export async function creditMember(memberId, adminId, amountPaid, amountCredited, description, paymentMethod = 'cb') {
   const { error } = await supabase.rpc('credit_user', {
     p_user_id: memberId,
     p_performed_by: adminId,
     p_amount_paid: amountPaid,
     p_amount_credited: amountCredited,
     p_description: description,
+    p_payment_method: paymentMethod,
   })
   if (error) throw error
 }
