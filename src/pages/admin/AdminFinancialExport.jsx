@@ -41,6 +41,27 @@ function toWeekAgo() {
   return d.toISOString().split('T')[0]
 }
 
+// Presets : retourne { from, to } pour la semaine/mois/année courants
+const PRESETS = {
+  week: () => {
+    const today = new Date()
+    const dow = today.getDay() // 0=Dim..6=Sam
+    // Convention club : lundi premier jour. Calculer le lundi de la semaine en cours.
+    const offsetToMonday = (dow + 6) % 7  // Lun=0, Dim=6
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - offsetToMonday)
+    return { from: monday.toISOString().split('T')[0], to: toToday() }
+  },
+  month: () => {
+    const d = new Date(); d.setDate(1)
+    return { from: d.toISOString().split('T')[0], to: toToday() }
+  },
+  year: () => {
+    const d = new Date(new Date().getFullYear(), 0, 1)
+    return { from: d.toISOString().split('T')[0], to: toToday() }
+  },
+}
+
 function computeKPIs(txs) {
   // Sessions = wallet (debit_session) + externes (external_payment AVEC booking_id)
   const sessionsWallet = txs.filter((t) => t.type === 'debit_session')
@@ -230,6 +251,25 @@ export default function AdminFinancialExport() {
 
         {/* Période */}
         <Card>
+          {/* Préfiltres rapides */}
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[
+              { id: 'week', label: 'Cette semaine' },
+              { id: 'month', label: 'Ce mois' },
+              { id: 'year', label: 'Cette année' },
+            ].map((preset) => (
+              <button
+                key={preset.id}
+                onClick={() => {
+                  const { from: f, to: t } = PRESETS[preset.id]()
+                  setFrom(f); setTo(t)
+                }}
+                className="px-3 py-1.5 rounded-[10px] text-xs font-medium bg-bg text-text-secondary hover:bg-primary/10 hover:text-primary cursor-pointer transition-colors"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-3 items-end">
             <div>
               <label className="text-xs text-text-secondary block mb-1">Du</label>
