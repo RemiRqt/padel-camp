@@ -175,3 +175,424 @@ BEGIN
 
   RAISE NOTICE 'Task 4 OK : % bookings insérés (avril 70%% + mai dégressif)', total_inserted;
 END $$;
+
+-- ============================================
+-- Task 5a : recharges wallet (priming des soldes pour les sessions)
+-- ~18 membres tirés au hasard, 1-3 recharges chacun via formules existantes
+-- Mix : 60% CB / 40% espèces (l'enum payment_method ne supporte pas 'transfer')
+-- Idempotent : skip si transactions de type 'credit' existent déjà sur la période
+-- ============================================
+DO $$
+DECLARE
+  recharge_pool UUID[];
+  target_member UUID;
+  nb_recharges INT;
+  formula RECORD;
+  pay_method TEXT;
+  r FLOAT;
+  admin_id UUID;
+  v_bonus DECIMAL;
+  recharge_ts TIMESTAMPTZ;
+  total INT := 0;
+BEGIN
+  -- Idempotence : skip si on a déjà inséré >20 credit sur la période démo
+  IF (SELECT count(*) FROM transactions
+      WHERE type = 'credit'
+        AND created_at BETWEEN '2026-03-15' AND '2026-04-27') > 20 THEN
+    RAISE NOTICE 'Task 5a SKIP : recharges démo déjà présentes';
+    RETURN;
+  END IF;
+
+  SELECT id INTO admin_id FROM profiles WHERE role = 'admin' ORDER BY created_at LIMIT 1;
+  IF admin_id IS NULL THEN
+    RAISE EXCEPTION 'Aucun admin trouvé pour performed_by';
+  END IF;
+
+  -- Tirer 18 membres au hasard hors rranquet
+  SELECT array_agg(id) INTO recharge_pool
+  FROM (
+    SELECT id FROM profiles
+    WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com')
+    ORDER BY random()
+    LIMIT 18
+  ) sub;
+
+  FOREACH target_member IN ARRAY recharge_pool LOOP
+    nb_recharges := 1 + floor(random() * 3)::INT;  -- 1 à 3
+    FOR i IN 1..nb_recharges LOOP
+      SELECT amount_paid, amount_credited INTO formula
+      FROM recharge_formulas
+      WHERE is_active = true
+      ORDER BY random()
+      LIMIT 1;
+
+      IF formula IS NULL THEN
+        RAISE EXCEPTION 'Aucune recharge_formula active trouvée';
+      END IF;
+
+      r := random();
+      pay_method := CASE WHEN r < 0.60 THEN 'cb' ELSE 'cash' END;
+
+      v_bonus := formula.amount_credited - formula.amount_paid;
+      recharge_ts := ('2026-03-15'::DATE + (random() * 40)::INT)::TIMESTAMPTZ + (random() * INTERVAL '12 hours');
+
+      -- 1) UPDATE balance
+      UPDATE profiles SET balance = balance + formula.amount_paid WHERE id = target_member;
+
+      -- 2) INSERT transaction de crédit (backdaté)
+      INSERT INTO transactions (
+        user_id, type, amount, description, performed_by,
+        formula_amount_paid, formula_amount_credited, formula_bonus,
+        payment_method, created_at
+      )
+      VALUES (
+        target_member, 'credit', formula.amount_paid,
+        'Recharge formule (démo)', admin_id,
+        CASE WHEN v_bonus > 0 THEN formula.amount_paid END,
+        CASE WHEN v_bonus > 0 THEN formula.amount_credited END,
+        CASE WHEN v_bonus > 0 THEN v_bonus END,
+        pay_method::payment_method, recharge_ts
+      );
+
+      -- 3) Si bonus, UPDATE balance_bonus + insert credit_bonus
+      IF v_bonus > 0 THEN
+        UPDATE profiles SET balance_bonus = balance_bonus + v_bonus WHERE id = target_member;
+        INSERT INTO transactions (
+          user_id, type, amount, bonus_amount, description, performed_by,
+          payment_method, created_at
+        )
+        VALUES (
+          target_member, 'credit_bonus', v_bonus, v_bonus,
+          'Bonus formule (' || formula.amount_paid || '€ → ' || formula.amount_credited || '€)',
+          admin_id, 'balance', recharge_ts + INTERVAL '1 second'
+        );
+      END IF;
+
+      total := total + 1;
+    END LOOP;
+  END LOOP;
+
+  RAISE NOTICE 'Task 5a OK : % recharges (60%% CB / 40%% espèces)', total;
+END $$;
+
+-- ============================================
+-- Task 5b : règlements complets des sessions PASSÉES
+-- 4 joueurs par session : J1 = créateur de la résa, J2-4 tirés au hasard
+-- Chaque joueur règle sa part (prix / 4) avec un mode au hasard :
+--   70% wallet (debit_session, payment_method='balance')
+--   20% CB (external_payment, payment_method='cb')
+--   10% espèces (external_payment, payment_method='cash')
+-- Si solde insuffisant pour wallet → fallback CB
+-- Idempotent : skip si booking_players déjà présents sur les bookings démo passés
+-- ============================================
+DO $$
+DECLARE
+  bk RECORD;
+  pool UUID[];
+  pool_names TEXT[];
+  admin_id UUID;
+  player_ids UUID[];
+  player_names TEXT[];
+  candidate_idx INT;
+  candidate_id UUID;
+  i INT;
+  share DECIMAL;
+  pay_method TEXT;
+  r FLOAT;
+  bp_payment_status TEXT;
+  v_balance DECIMAL;
+  v_balance_bonus DECIMAL;
+  v_bonus_used DECIMAL;
+  v_real_used DECIMAL;
+  session_ts TIMESTAMPTZ;
+  total_bp INT := 0;
+BEGIN
+  -- Idempotence : skip si déjà beaucoup de booking_players sur avril
+  IF (SELECT count(*) FROM booking_players bp
+      JOIN bookings b ON b.id = bp.booking_id
+      WHERE b.date BETWEEN '2026-04-01' AND '2026-04-26') > 100 THEN
+    RAISE NOTICE 'Task 5b SKIP : règlements démo déjà présents';
+    RETURN;
+  END IF;
+
+  -- Pool : tous les membres sauf rranquet
+  SELECT array_agg(id ORDER BY id), array_agg(display_name ORDER BY id)
+  INTO pool, pool_names
+  FROM profiles
+  WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com');
+
+  SELECT id INTO admin_id FROM profiles WHERE role = 'admin' ORDER BY created_at LIMIT 1;
+
+  FOR bk IN
+    SELECT b.id, b.user_id, b.user_name, b.price, b.date, b.start_time
+    FROM bookings b
+    WHERE b.date < CURRENT_DATE
+      AND b.date >= '2026-04-01'
+      AND NOT EXISTS (SELECT 1 FROM booking_players bp WHERE bp.booking_id = b.id)
+    ORDER BY b.date, b.start_time
+  LOOP
+    share := round(bk.price / 4.0, 2);
+    session_ts := bk.date::TIMESTAMPTZ + bk.start_time;
+
+    -- Joueur 1 = créateur de la résa
+    player_ids := ARRAY[bk.user_id]::UUID[];
+    player_names := ARRAY[bk.user_name]::TEXT[];
+
+    -- Joueurs 2-4 : tirage au hasard parmi le pool, sans doublon
+    WHILE array_length(player_ids, 1) < 4 LOOP
+      candidate_idx := floor(random() * array_length(pool, 1))::INT + 1;
+      candidate_id := pool[candidate_idx];
+      IF NOT (candidate_id = ANY(player_ids)) THEN
+        player_ids := array_append(player_ids, candidate_id);
+        player_names := array_append(player_names, pool_names[candidate_idx]);
+      END IF;
+    END LOOP;
+
+    -- Chaque joueur règle sa part
+    FOR i IN 1..4 LOOP
+      r := random();
+      IF r < 0.70 THEN
+        pay_method := 'balance';
+      ELSIF r < 0.90 THEN
+        pay_method := 'cb';
+      ELSE
+        pay_method := 'cash';
+      END IF;
+
+      -- Vérif solde wallet, fallback CB si insuffisant
+      IF pay_method = 'balance' THEN
+        SELECT balance, balance_bonus INTO v_balance, v_balance_bonus
+        FROM profiles WHERE id = player_ids[i] FOR UPDATE;
+        IF (v_balance + v_balance_bonus) < share THEN
+          pay_method := 'cb';  -- fallback
+        END IF;
+      END IF;
+
+      IF pay_method = 'balance' THEN
+        bp_payment_status := 'paid';
+        -- Bonus first
+        IF v_balance_bonus >= share THEN
+          v_bonus_used := share;
+          v_real_used := 0;
+        ELSE
+          v_bonus_used := v_balance_bonus;
+          v_real_used := share - v_balance_bonus;
+        END IF;
+
+        UPDATE profiles SET
+          balance = balance - v_real_used,
+          balance_bonus = balance_bonus - v_bonus_used
+        WHERE id = player_ids[i];
+
+        INSERT INTO transactions (
+          user_id, type, amount, bonus_used, real_used,
+          description, performed_by, booking_id, payment_method, parts_count, created_at
+        )
+        VALUES (
+          player_ids[i], 'debit_session', share, v_bonus_used, v_real_used,
+          'Part session ' || bk.date::TEXT || ' ' || bk.start_time::TEXT,
+          admin_id, bk.id, 'balance', 1, session_ts
+        );
+      ELSE
+        bp_payment_status := 'external';
+        -- INSERT direct dans transactions (bypass RPC qui exige is_admin())
+        INSERT INTO transactions (
+          user_id, type, amount, description, performed_by, booking_id,
+          payment_method, parts_count, created_at
+        )
+        VALUES (
+          player_ids[i], 'external_payment', share,
+          'Part session ' || bk.date::TEXT || ' ' || bk.start_time::TEXT,
+          admin_id, bk.id, pay_method::payment_method, 1, session_ts
+        );
+      END IF;
+
+      INSERT INTO booking_players (
+        booking_id, user_id, player_name, parts, payment_method, amount, payment_status, created_at
+      )
+      VALUES (
+        bk.id, player_ids[i], player_names[i], 1,
+        pay_method::payment_method, share, bp_payment_status,
+        session_ts - INTERVAL '1 hour'
+      );
+
+      total_bp := total_bp + 1;
+    END LOOP;
+  END LOOP;
+
+  RAISE NOTICE 'Task 5b OK : % booking_players réglés (4 par session passée)', total_bp;
+END $$;
+
+-- ============================================
+-- Task 5c : FIX prix + RESET règlements + créateur sur résas futures
+-- 1) Rembourse les wallets pour les debit_session démo
+-- 2) Supprime booking_players + transactions de session démo
+-- 3) Recalcule bookings.price selon pricing_rules
+--    (Lun-Ven 09:30-17:59 = 52€, sinon 68€)
+-- 4) Re-traite les sessions passées avec les bons prix
+-- 5) Insère 1 booking_player (créateur) sur chaque résa future, payment_status='pending'
+-- ============================================
+DO $$
+DECLARE
+  bk RECORD;
+  pool UUID[];
+  pool_names TEXT[];
+  admin_id UUID;
+  player_ids UUID[];
+  player_names TEXT[];
+  candidate_idx INT;
+  candidate_id UUID;
+  i INT;
+  share DECIMAL;
+  pay_method TEXT;
+  r FLOAT;
+  bp_payment_status TEXT;
+  v_balance DECIMAL;
+  v_balance_bonus DECIMAL;
+  v_bonus_used DECIMAL;
+  v_real_used DECIMAL;
+  session_ts TIMESTAMPTZ;
+  total_bp INT := 0;
+  future_inserted INT := 0;
+BEGIN
+  -- 1) REFUND wallets : pour chaque debit_session démo, restaurer real_used + bonus_used
+  WITH refund AS (
+    SELECT user_id,
+           SUM(real_used) AS r_used,
+           SUM(bonus_used) AS b_used
+    FROM transactions
+    WHERE type = 'debit_session'
+      AND created_at BETWEEN '2026-04-01' AND '2026-05-31'
+    GROUP BY user_id
+  )
+  UPDATE profiles p
+  SET balance = p.balance + r.r_used,
+      balance_bonus = p.balance_bonus + r.b_used
+  FROM refund r
+  WHERE p.id = r.user_id;
+
+  -- 2) Supprimer transactions de session démo (debit_session + external_payment liées à bookings démo)
+  DELETE FROM transactions
+  WHERE type IN ('debit_session', 'external_payment')
+    AND booking_id IN (
+      SELECT id FROM bookings WHERE date BETWEEN '2026-04-01' AND '2026-05-31'
+    );
+
+  -- 3) Supprimer booking_players des résas démo
+  DELETE FROM booking_players
+  WHERE booking_id IN (
+    SELECT id FROM bookings WHERE date BETWEEN '2026-04-01' AND '2026-05-31'
+  );
+
+  -- 4) Recalculer bookings.price selon pricing_rules
+  -- Convention club : 0=Lun..6=Dim → conversion depuis PG DOW (0=Dim) : (DOW + 6) % 7
+  UPDATE bookings SET price = CASE
+    WHEN ((EXTRACT(DOW FROM date)::INT + 6) % 7) IN (0,1,2,3,4) AND start_time < '18:00'::TIME THEN 52.00
+    WHEN ((EXTRACT(DOW FROM date)::INT + 6) % 7) IN (0,1,2,3,4) AND start_time >= '18:00'::TIME THEN 68.00
+    ELSE 68.00  -- week-end (5=Sam, 6=Dim) toute la journée
+  END
+  WHERE date BETWEEN '2026-04-01' AND '2026-05-31';
+
+  -- 5) Re-traiter les sessions PASSÉES (4 joueurs, règlements 70/20/10 avec fallback CB)
+  SELECT array_agg(id ORDER BY id), array_agg(display_name ORDER BY id)
+  INTO pool, pool_names
+  FROM profiles
+  WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com');
+
+  SELECT id INTO admin_id FROM profiles WHERE role = 'admin' ORDER BY created_at LIMIT 1;
+
+  FOR bk IN
+    SELECT b.id, b.user_id, b.user_name, b.price, b.date, b.start_time
+    FROM bookings b
+    WHERE b.date < CURRENT_DATE
+      AND b.date >= '2026-04-01'
+    ORDER BY b.date, b.start_time
+  LOOP
+    share := round(bk.price / 4.0, 2);
+    session_ts := bk.date::TIMESTAMPTZ + bk.start_time;
+
+    -- J1 = créateur, J2-4 = aléatoires distincts
+    player_ids := ARRAY[bk.user_id]::UUID[];
+    player_names := ARRAY[bk.user_name]::TEXT[];
+    WHILE array_length(player_ids, 1) < 4 LOOP
+      candidate_idx := floor(random() * array_length(pool, 1))::INT + 1;
+      candidate_id := pool[candidate_idx];
+      IF NOT (candidate_id = ANY(player_ids)) THEN
+        player_ids := array_append(player_ids, candidate_id);
+        player_names := array_append(player_names, pool_names[candidate_idx]);
+      END IF;
+    END LOOP;
+
+    FOR i IN 1..4 LOOP
+      r := random();
+      IF r < 0.70 THEN pay_method := 'balance';
+      ELSIF r < 0.90 THEN pay_method := 'cb';
+      ELSE pay_method := 'cash';
+      END IF;
+
+      IF pay_method = 'balance' THEN
+        SELECT balance, balance_bonus INTO v_balance, v_balance_bonus
+        FROM profiles WHERE id = player_ids[i] FOR UPDATE;
+        IF (v_balance + v_balance_bonus) < share THEN
+          pay_method := 'cb';  -- fallback
+        END IF;
+      END IF;
+
+      IF pay_method = 'balance' THEN
+        bp_payment_status := 'paid';
+        IF v_balance_bonus >= share THEN
+          v_bonus_used := share; v_real_used := 0;
+        ELSE
+          v_bonus_used := v_balance_bonus; v_real_used := share - v_balance_bonus;
+        END IF;
+        UPDATE profiles SET
+          balance = balance - v_real_used,
+          balance_bonus = balance_bonus - v_bonus_used
+        WHERE id = player_ids[i];
+
+        INSERT INTO transactions (
+          user_id, type, amount, bonus_used, real_used,
+          description, performed_by, booking_id, payment_method, parts_count, created_at
+        ) VALUES (
+          player_ids[i], 'debit_session', share, v_bonus_used, v_real_used,
+          'Part session ' || bk.date::TEXT || ' ' || bk.start_time::TEXT,
+          admin_id, bk.id, 'balance', 1, session_ts
+        );
+      ELSE
+        bp_payment_status := 'external';
+        INSERT INTO transactions (
+          user_id, type, amount, description, performed_by, booking_id,
+          payment_method, parts_count, created_at
+        ) VALUES (
+          player_ids[i], 'external_payment', share,
+          'Part session ' || bk.date::TEXT || ' ' || bk.start_time::TEXT,
+          admin_id, bk.id, pay_method::payment_method, 1, session_ts
+        );
+      END IF;
+
+      INSERT INTO booking_players (
+        booking_id, user_id, player_name, parts, payment_method, amount, payment_status, created_at
+      ) VALUES (
+        bk.id, player_ids[i], player_names[i], 1,
+        pay_method::payment_method, share, bp_payment_status,
+        session_ts - INTERVAL '1 hour'
+      );
+      total_bp := total_bp + 1;
+    END LOOP;
+  END LOOP;
+
+  -- 6) FUTUR : insérer 1 booking_player (le créateur, pending) pour chaque résa à venir
+  INSERT INTO booking_players (
+    booking_id, user_id, player_name, parts, payment_method, amount, payment_status, created_at
+  )
+  SELECT b.id, b.user_id, b.user_name, 1, 'balance'::payment_method, 0, 'pending', b.created_at
+  FROM bookings b
+  WHERE b.date >= CURRENT_DATE
+    AND b.date BETWEEN '2026-04-01' AND '2026-05-31'
+    AND NOT EXISTS (SELECT 1 FROM booking_players bp WHERE bp.booking_id = b.id);
+
+  GET DIAGNOSTICS future_inserted = ROW_COUNT;
+
+  RAISE NOTICE 'Task 5c OK : prix corrigés, % booking_players passés re-créés, % créateurs ajoutés sur résas futures',
+    total_bp, future_inserted;
+END $$;
