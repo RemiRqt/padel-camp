@@ -703,3 +703,31 @@ BEGIN
 
   RAISE NOTICE 'Task 6 OK : % ventes POS sur la période', total;
 END $$;
+
+-- ============================================
+-- Task 7 : diversifier les TVA (5.5 / 10 / 20)
+-- + recompute TVA sur transactions POS existantes
+-- ============================================
+
+-- Boissons + Location → 10% (restauration sur place / service)
+UPDATE product_categories SET tva_rate = 10
+WHERE name IN ('Boissons', 'Location');
+
+-- Override 5.5% sur eau et jus (alimentaire de base)
+UPDATE products SET tva_rate = 5.5
+WHERE name ILIKE '%eau%' OR name ILIKE '%jus%';
+
+-- Recompute TVA sur transactions POS existantes
+UPDATE transactions t
+SET tva_rate = effective.rate,
+    amount_ht = ROUND(t.amount / (1 + effective.rate/100), 2),
+    amount_tva = t.amount - ROUND(t.amount / (1 + effective.rate/100), 2)
+FROM (
+  SELECT p.id AS product_id,
+         COALESCE(p.tva_rate, c.tva_rate, 20) AS rate
+  FROM products p
+  LEFT JOIN product_categories c ON c.id = p.category_id
+) effective
+WHERE t.product_id = effective.product_id
+  AND t.type IN ('debit_product', 'external_payment')
+  AND t.product_id IS NOT NULL;
