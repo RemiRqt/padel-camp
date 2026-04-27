@@ -22,8 +22,8 @@ export default function RevenueChart({ data }) {
               formatter={(v) => `${v.toFixed(2)}€`}
               contentStyle={{ borderRadius: 12, fontSize: 12 }}
             />
-            <Line type="monotone" dataKey="reel" name="CA réel" stroke="#0B2778" strokeWidth={2} dot={false} />
-            <Line type="monotone" dataKey="bonus" name="Bonus" stroke="#D4E620" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="sessions" name="Sessions" stroke="#0B2778" strokeWidth={2} dot={false} />
+            <Line type="monotone" dataKey="articles" name="Articles" stroke="#FF9500" strokeWidth={2} dot={false} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
           </LineChart>
         </ResponsiveContainer>

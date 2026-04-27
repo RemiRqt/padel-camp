@@ -8,10 +8,8 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
-import ExportButtons from '@/components/ui/ExportButtons'
 import Pagination from '@/components/ui/Pagination'
 import CreditModal from '@/components/admin/members/CreditModal'
-import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import { Search, UserPlus, Wallet, Shield, Users } from 'lucide-react'
 
@@ -45,7 +43,9 @@ export default function AdminMembers() {
   const fetchMembers = async () => {
     setLoading(true)
     try {
-      const data = await fetchAllMembers()
+      const all = await fetchAllMembers()
+      // Exclure les admins de la liste : ils n'ont pas de wallet et ne sont pas membres
+      const data = all.filter((m) => m.role !== 'admin')
       setMembers(data)
       applyFilters(data, search, roleFilter)
     } catch (err) {
@@ -55,6 +55,13 @@ export default function AdminMembers() {
       setLoading(false)
     }
   }
+
+  // Normalisation pour recherche insensible aux accents/majuscules : Rémi == Remi == REMI
+  const normalize = (s) => (s || '')
+    .toString()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
 
   const fetchFormulas = async () => {
     try {
@@ -70,11 +77,11 @@ export default function AdminMembers() {
   const applyFilters = (data, q, role) => {
     let result = data
     if (q) {
-      const lq = q.toLowerCase()
+      const nq = normalize(q)
       result = result.filter((m) =>
-        m.display_name?.toLowerCase().includes(lq) ||
-        m.email?.toLowerCase().includes(lq) ||
-        m.phone?.includes(q)
+        normalize(m.display_name).includes(nq) ||
+        normalize(m.email).includes(nq) ||
+        (m.phone || '').includes(q)
       )
     }
     if (role !== 'all') result = result.filter((m) => m.role === role)
@@ -144,21 +151,6 @@ export default function AdminMembers() {
     }
   }
 
-  const exportCols = [
-    { key: 'display_name', label: 'Nom' },
-    { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Tél' },
-    { key: 'role', label: 'Rôle' },
-    { key: 'balance', label: 'Solde' },
-    { key: 'balance_bonus', label: 'Bonus' },
-    { key: 'license_number', label: 'Licence FFT' },
-  ]
-  const exportRows = filtered.map((m) => ({
-    ...m,
-    balance: parseFloat(m.balance).toFixed(2) + '€',
-    balance_bonus: parseFloat(m.balance_bonus).toFixed(2) + '€',
-  }))
-
   return (
     <PageWrapper wide>
       <div className="space-y-5">
@@ -169,15 +161,9 @@ export default function AdminMembers() {
             <h1 className="text-2xl font-bold text-text">Membres</h1>
             <Badge color="primary">{members.length}</Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <ExportButtons
-              onExcel={() => exportExcel(exportRows, exportCols, 'membres')}
-              onPDF={() => exportPDF(exportRows, exportCols, 'membres', 'Padel Camp — Membres')}
-            />
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
-              <UserPlus className="w-4 h-4 mr-1" />Créer
-            </Button>
-          </div>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <UserPlus className="w-4 h-4 mr-1" />Créer
+          </Button>
         </div>
 
         {/* Search & Filters */}

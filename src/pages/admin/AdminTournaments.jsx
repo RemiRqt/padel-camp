@@ -10,8 +10,6 @@ import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
 import ConfirmModal from '@/components/ui/ConfirmModal'
 import useConfirm from '@/hooks/useConfirm'
-import ExportButtons from '@/components/ui/ExportButtons'
-import { exportExcel, exportPDF } from '@/utils/export'
 import TournamentDetailView from '@/components/admin/tournaments/TournamentDetailView'
 import TournamentFormModal from '@/components/admin/tournaments/TournamentFormModal'
 import TournamentListView from '@/components/admin/tournaments/TournamentListView'
@@ -154,19 +152,6 @@ export default function AdminTournaments() {
     })
   }
 
-  // --- Exports ---
-  const exportCols = [
-    { key: 'name', label: 'Tournoi' }, { key: 'date', label: 'Date' },
-    { key: 'level', label: 'Niveau' }, { key: 'category', label: 'Cat\u00e9gorie' },
-    { key: 'teams', label: 'Inscriptions' }, { key: 'max', label: 'Max' },
-    { key: 'status', label: 'Statut' },
-  ]
-  const exportRows = tournaments.map((t) => ({
-    name: t.name, date: new Date(t.date + 'T00:00').toLocaleDateString('fr-FR'),
-    level: t.level, category: t.category, teams: regCounts[t.id] || 0,
-    max: t.max_teams, status: STATUS_LABELS[t.status],
-  }))
-
   // =============================================
   // DETAIL VIEW
   // =============================================
@@ -202,13 +187,7 @@ export default function AdminTournaments() {
             <h1 className="text-2xl font-bold text-text">Tournois</h1>
             <Badge color="primary">{tournaments.length}</Badge>
           </div>
-          <div className="flex items-center gap-2">
-            <ExportButtons
-              onExcel={() => exportExcel(exportRows, exportCols, 'tournois')}
-              onPDF={() => exportPDF(exportRows, exportCols, 'tournois', 'Padel Camp \u2014 Tournois')}
-            />
-            <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />{'Cr\u00e9er'}</Button>
-          </div>
+          <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />{'Cr\u00e9er'}</Button>
         </div>
 
         {loading ? (

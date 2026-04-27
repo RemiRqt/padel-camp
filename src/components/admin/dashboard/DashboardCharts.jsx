@@ -43,18 +43,32 @@ export default function DashboardCharts({ txBreakdown, courtOccupancy, COLORS })
       <Card>
         <div className="flex items-center gap-2 mb-4">
           <CalendarDays className="w-4 h-4 text-primary" />
-          <h3 className="font-semibold text-text">Occupation terrains</h3>
+          <h3 className="font-semibold text-text">Occupation par terrain</h3>
         </div>
         {courtOccupancy.length > 0 ? (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={courtOccupancy}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip contentStyle={{ borderRadius: 12, fontSize: 12 }} />
-              <Bar dataKey="reservations" name="Réservations" fill="#0B2778" radius={[6, 6, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={courtOccupancy}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} unit="%" />
+                <Tooltip
+                  formatter={(v, name) => name === 'percent' ? `${v}%` : v}
+                  contentStyle={{ borderRadius: 12, fontSize: 12 }}
+                />
+                <Bar dataKey="percent" name="Occupation" fill="#0B2778" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+            <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-separator">
+              {courtOccupancy.map((c) => (
+                <div key={c.name} className="text-center">
+                  <p className="text-xs text-text-tertiary">{c.name}</p>
+                  <p className="text-lg font-bold text-primary">{c.percent}%</p>
+                  <p className="text-[10px] text-text-tertiary">{c.reservations} résa{c.reservations > 1 ? 's' : ''}</p>
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
           <p className="text-sm text-text-tertiary text-center py-8">Aucune donnée</p>
         )}

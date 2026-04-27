@@ -6,8 +6,6 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
-import ExportButtons from '@/components/ui/ExportButtons'
-import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import { Package, Plus, Pencil, Trash2, FolderOpen } from 'lucide-react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -157,21 +155,6 @@ export default function AdminProducts() {
     }
   }
 
-  const exportCols = [
-    { key: 'name', label: 'Produit' },
-    { key: 'category', label: 'Catégorie' },
-    { key: 'price', label: 'Prix TTC' },
-    { key: 'tva', label: 'TVA' },
-    { key: 'active', label: 'Actif' },
-  ]
-  const exportRows = filteredProducts.map((p) => ({
-    name: p.name,
-    category: p.category?.name || '',
-    price: parseFloat(p.price).toFixed(2) + '€',
-    tva: formatTvaRate(getProductTvaRate(p)) + (p.tva_rate == null ? ' (cat.)' : ''),
-    active: p.is_active ? 'Oui' : 'Non',
-  }))
-
   return (
     <PageWrapper wide>
       <div className="space-y-5">
@@ -182,10 +165,6 @@ export default function AdminProducts() {
             <Badge color="primary">{products.length} articles</Badge>
           </div>
           <div className="flex items-center gap-2">
-            <ExportButtons
-              onExcel={() => exportExcel(exportRows, exportCols, 'produits')}
-              onPDF={() => exportPDF(exportRows, exportCols, 'produits', 'Padel Camp — Produits')}
-            />
             <Button size="sm" variant="ghost" onClick={() => { setEditingCat(null); setCatName(''); setCatTva(''); setCatModalOpen(true) }}>
               <FolderOpen className="w-4 h-4 mr-1" />Catégorie
             </Button>

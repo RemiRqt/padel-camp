@@ -7,8 +7,6 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
-import ExportButtons from '@/components/ui/ExportButtons'
-import { exportExcel, exportPDF } from '@/utils/export'
 import { formatTime } from '@/utils/formatDate'
 import toast from 'react-hot-toast'
 import {
@@ -151,19 +149,6 @@ export default function AdminSettings() {
     })
   }
 
-  const exportCols = [
-    { key: 'label', label: 'Tarif' },
-    { key: 'days', label: 'Jours' },
-    { key: 'hours', label: 'Horaires' },
-    { key: 'price', label: 'Prix/créneau' },
-  ]
-  const exportRows = pricingRules.map((r) => ({
-    label: r.label,
-    days: r.days.map((d) => DAY_NAMES[d]).join(', '),
-    hours: `${formatTime(r.start_time)} – ${formatTime(r.end_time)}`,
-    price: parseFloat(r.price_per_slot).toFixed(2) + '€',
-  }))
-
   if (clubLoading || !config) {
     return (
       <PageWrapper wide title="Paramètres">
@@ -276,15 +261,9 @@ export default function AdminSettings() {
               <Euro className="w-4 h-4 text-primary" />
               <h3 className="font-semibold text-text">Tarifs</h3>
             </div>
-            <div className="flex items-center gap-2">
-              <ExportButtons
-                onExcel={() => exportExcel(exportRows, exportCols, 'tarifs')}
-                onPDF={() => exportPDF(exportRows, exportCols, 'tarifs', 'Padel Camp — Tarifs')}
-              />
-              <Button size="sm" onClick={openCreateRule}>
-                <Plus className="w-4 h-4 mr-1" />Ajouter
-              </Button>
-            </div>
+            <Button size="sm" onClick={openCreateRule}>
+              <Plus className="w-4 h-4 mr-1" />Ajouter
+            </Button>
           </div>
           <div className="space-y-2">
             {pricingRules.map((rule) => (

@@ -6,8 +6,6 @@ import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Modal from '@/components/ui/Modal'
-import ExportButtons from '@/components/ui/ExportButtons'
-import { exportExcel, exportPDF } from '@/utils/export'
 import toast from 'react-hot-toast'
 import { CreditCard, Plus, Pencil, Trash2, Gift } from 'lucide-react'
 import ConfirmModal from '@/components/ui/ConfirmModal'
@@ -94,19 +92,6 @@ export default function AdminFormulas() {
     })
   }
 
-  const exportCols = [
-    { key: 'paid', label: 'Payé (€)' },
-    { key: 'credited', label: 'Crédité (€)' },
-    { key: 'bonus', label: 'Bonus (€)' },
-    { key: 'active', label: 'Active' },
-  ]
-  const exportRows = formulas.map((f) => ({
-    paid: parseFloat(f.amount_paid).toFixed(2),
-    credited: parseFloat(f.amount_credited).toFixed(2),
-    bonus: parseFloat(f.bonus).toFixed(2),
-    active: f.is_active ? 'Oui' : 'Non',
-  }))
-
   return (
     <PageWrapper wide>
       <div className="space-y-5">
@@ -115,15 +100,9 @@ export default function AdminFormulas() {
             <CreditCard className="w-5 h-5 text-primary" />
             <h1 className="text-2xl font-bold text-text">Formules de recharge</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <ExportButtons
-              onExcel={() => exportExcel(exportRows, exportCols, 'formules')}
-              onPDF={() => exportPDF(exportRows, exportCols, 'formules', 'Padel Camp — Formules')}
-            />
-            <Button size="sm" onClick={openCreate}>
-              <Plus className="w-4 h-4 mr-1" />Ajouter
-            </Button>
-          </div>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="w-4 h-4 mr-1" />Ajouter
+          </Button>
         </div>
 
         {/* Table */}

@@ -57,7 +57,7 @@ export default function Header() {
         <div className="h-full px-4 flex items-center justify-between">
           <Link to={user ? (isAdmin ? '/admin' : '/dashboard') : '/'} className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center p-1.5">
-              <img src="/favicon.svg" alt="Padel Camp" className="w-full h-full" />
+              <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full" />
             </div>
             <div className="leading-tight">
               <p className="text-sm font-bold text-text">Padel Camp</p>
