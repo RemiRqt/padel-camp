@@ -42,54 +42,81 @@ function toWeekAgo() {
 }
 
 function computeKPIs(txs) {
-  const sessions = txs.filter((t) => t.type === 'debit_session')
-  const articles = txs.filter((t) => t.type === 'debit_product')
-  const recharges = txs.filter((t) => t.type === 'credit')
-  const externals = txs.filter((t) => t.type === 'external_payment')
+  // Sessions = wallet (debit_session) + externes (external_payment AVEC booking_id)
+  const sessionsWallet = txs.filter((t) => t.type === 'debit_session')
+  const sessionsExternal = txs.filter((t) => t.type === 'external_payment' && t.booking_id)
+  const sessionsAll = [...sessionsWallet, ...sessionsExternal]
 
-  const sumHt = (arr) => arr.reduce((s, t) => s + (Number(t.amount_ht) || 0), 0)
-  const sumTtc = (arr) => arr.reduce((s, t) => s + (Number(t.amount) || 0), 0)
-  const sumByMethod = (method) => txs
+  // Articles = wallet (debit_product) + externes (external_payment AVEC product_id)
+  const articlesWallet = txs.filter((t) => t.type === 'debit_product')
+  const articlesExternal = txs.filter((t) => t.type === 'external_payment' && t.product_id)
+  const articlesAll = [...articlesWallet, ...articlesExternal]
+
+  // Rechargements = type=credit (CB ou cash uniquement, jamais wallet)
+  const recharges = txs.filter((t) => t.type === 'credit')
+
+  const sum = (arr) => arr.reduce((s, t) => s + (Number(t.amount) || 0), 0)
+  const sumByMethod = (arr, method) => arr
     .filter((t) => t.payment_method === method)
     .reduce((s, t) => s + (Number(t.amount) || 0), 0)
 
-  // Encaissements caisse réels = tout ce qui est entré en CB ou Espèces
-  // (rechargements + sessions/articles payés directement + paiements externes)
-  const encaissementsCb = sumByMethod('cb')
-  const encaissementsCash = sumByMethod('cash')
-  const encaissementsTotal = encaissementsCb + encaissementsCash
-
-  // Conso wallet = ce qui a été dépensé depuis le solde (déjà encaissé via recharge antérieure)
-  const consoWallet = sessions.filter((t) => t.payment_method === 'balance').reduce((s, t) => s + (Number(t.amount) || 0), 0)
-                    + articles.filter((t) => t.payment_method === 'balance').reduce((s, t) => s + (Number(t.amount) || 0), 0)
+  // Encaissement caisse = vraie entrée d'argent (CB + Espèces sur tout)
+  // ⚠️ pas de double comptage : un débit wallet ne re-compte pas, l'argent
+  //    avait déjà été encaissé via la recharge antérieure.
+  const totalCB = sumByMethod(txs, 'cb')
+  const totalCash = sumByMethod(txs, 'cash')
+  // Wallet débité = consommation du solde (sessions + articles payés en wallet)
+  const totalWalletDebited = sumByMethod(sessionsWallet, 'balance')
+                            + sumByMethod(articlesWallet, 'balance')
 
   return {
-    sessions: { count: sessions.length, total: sumTtc(sessions), ht: sumHt(sessions) },
-    articles: { count: articles.length, total: sumTtc(articles), ht: sumHt(articles) },
+    sessions: {
+      count: sessionsAll.length,
+      total: sum(sessionsAll),
+      wallet: sumByMethod(sessionsAll, 'balance'),
+      cb: sumByMethod(sessionsAll, 'cb'),
+      cash: sumByMethod(sessionsAll, 'cash'),
+    },
+    articles: {
+      count: articlesAll.length,
+      total: sum(articlesAll),
+      wallet: sumByMethod(articlesAll, 'balance'),
+      cb: sumByMethod(articlesAll, 'cb'),
+      cash: sumByMethod(articlesAll, 'cash'),
+    },
     recharges: {
       count: recharges.length,
-      total: recharges.reduce((s, t) => s + (Number(t.amount) || 0), 0),
-      cb: recharges.filter((t) => t.payment_method === 'cb').reduce((s, t) => s + (Number(t.amount) || 0), 0),
-      cash: recharges.filter((t) => t.payment_method === 'cash').reduce((s, t) => s + (Number(t.amount) || 0), 0),
+      total: sum(recharges),
+      cb: sumByMethod(recharges, 'cb'),
+      cash: sumByMethod(recharges, 'cash'),
     },
-    externals: { count: externals.length, total: sumTtc(externals) },
-    consoWallet,
-    encaissementsCb,
-    encaissementsCash,
-    encaissementsTotal,
+    encaissement: {
+      cb: totalCB,
+      cash: totalCash,
+      walletDebited: totalWalletDebited,
+      total: totalCB + totalCash,
+    },
   }
 }
 
-function KPICard({ label, count, total, ht, sub }) {
+function KPICard({ label, total, breakdown, count }) {
   return (
     <Card elevated>
       <p className="text-xs text-text-tertiary mb-1">{label}</p>
-      <p className="text-xl font-bold text-primary">{(total || 0).toFixed(2)} €</p>
-      <p className="text-xs text-text-secondary">
-        {count} transaction{count !== 1 ? 's' : ''}
-        {sub ? ` · ${sub}` : ''}
-        {ht != null ? ` · HT ${ht.toFixed(2)}€` : ''}
-      </p>
+      <p className="text-xl font-bold text-primary mb-2">{(total || 0).toFixed(2)} €</p>
+      <div className="space-y-0.5">
+        {breakdown.map((b) => (
+          <div key={b.label} className="flex justify-between text-xs">
+            <span className="text-text-secondary">{b.label}</span>
+            <span className="font-medium text-text">{(b.value || 0).toFixed(2)} €</span>
+          </div>
+        ))}
+      </div>
+      {count != null && (
+        <p className="text-[11px] text-text-tertiary mt-2 pt-2 border-t border-separator">
+          {count} transaction{count !== 1 ? 's' : ''}
+        </p>
+      )}
     </Card>
   )
 }
@@ -221,37 +248,60 @@ export default function AdminFinancialExport() {
         </Card>
 
         {/* KPIs Activité */}
-        <div className="grid grid-cols-2 gap-3">
-          <KPICard label="Sessions" count={kpis.sessions.count} total={kpis.sessions.total} ht={kpis.sessions.ht} />
-          <KPICard label="Articles" count={kpis.articles.count} total={kpis.articles.total} ht={kpis.articles.ht} />
-          <KPICard label="Rechargements" count={kpis.recharges.count} total={kpis.recharges.total}
-            sub={`CB ${kpis.recharges.cb.toFixed(2)}€ · Esp. ${kpis.recharges.cash.toFixed(2)}€`} />
-          <KPICard label="Paiements externes" count={kpis.externals.count} total={kpis.externals.total} sub="non-membres" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <KPICard
+            label="Sessions"
+            total={kpis.sessions.total}
+            count={kpis.sessions.count}
+            breakdown={[
+              { label: 'Wallet', value: kpis.sessions.wallet },
+              { label: 'CB', value: kpis.sessions.cb },
+              { label: 'Espèces', value: kpis.sessions.cash },
+            ]}
+          />
+          <KPICard
+            label="Articles"
+            total={kpis.articles.total}
+            count={kpis.articles.count}
+            breakdown={[
+              { label: 'Wallet', value: kpis.articles.wallet },
+              { label: 'CB', value: kpis.articles.cb },
+              { label: 'Espèces', value: kpis.articles.cash },
+            ]}
+          />
+          <KPICard
+            label="Rechargements"
+            total={kpis.recharges.total}
+            count={kpis.recharges.count}
+            breakdown={[
+              { label: 'CB', value: kpis.recharges.cb },
+              { label: 'Espèces', value: kpis.recharges.cash },
+            ]}
+          />
         </div>
 
-        {/* Encaissements caisse — argent réellement entré */}
+        {/* Encaissement caisse — vraie entrée d'argent */}
         <Card elevated>
-          <p className="text-xs font-semibold text-text-secondary uppercase mb-2">Encaissements caisse</p>
-          <div className="grid grid-cols-3 gap-3">
+          <p className="text-xs font-semibold text-text-secondary uppercase mb-3">Encaissement caisse</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
-              <p className="text-xs text-text-tertiary">CB</p>
-              <p className="text-lg font-bold text-primary">{kpis.encaissementsCb.toFixed(2)} €</p>
+              <p className="text-xs text-text-tertiary mb-0.5">Total CB</p>
+              <p className="text-lg font-bold text-primary">{kpis.encaissement.cb.toFixed(2)} €</p>
             </div>
             <div>
-              <p className="text-xs text-text-tertiary">Espèces</p>
-              <p className="text-lg font-bold text-primary">{kpis.encaissementsCash.toFixed(2)} €</p>
+              <p className="text-xs text-text-tertiary mb-0.5">Total espèces</p>
+              <p className="text-lg font-bold text-primary">{kpis.encaissement.cash.toFixed(2)} €</p>
             </div>
             <div>
-              <p className="text-xs text-text-tertiary">Total</p>
-              <p className="text-lg font-bold text-lime-600">{kpis.encaissementsTotal.toFixed(2)} €</p>
+              <p className="text-xs text-text-tertiary mb-0.5">Wallet débité</p>
+              <p className="text-lg font-bold text-text-secondary">{kpis.encaissement.walletDebited.toFixed(2)} €</p>
+              <p className="text-[10px] text-text-tertiary leading-tight">déjà encaissé via recharges</p>
             </div>
-          </div>
-          <p className="text-xs text-text-tertiary mt-2">
-            Argent réellement entré dans la caisse (rechargements + paiements directs CB/Espèces).
-          </p>
-          <div className="mt-3 pt-3 border-t border-separator flex justify-between text-xs">
-            <span className="text-text-secondary">Conso wallet (déjà encaissée via recharges antérieures)</span>
-            <span className="font-semibold text-text">{kpis.consoWallet.toFixed(2)} €</span>
+            <div className="border-l border-separator pl-3">
+              <p className="text-xs text-text-tertiary mb-0.5">Total caisse</p>
+              <p className="text-lg font-bold text-lime-600">{kpis.encaissement.total.toFixed(2)} €</p>
+              <p className="text-[10px] text-text-tertiary leading-tight">CB + espèces</p>
+            </div>
           </div>
         </Card>
 
