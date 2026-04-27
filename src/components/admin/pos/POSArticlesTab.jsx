@@ -77,6 +77,33 @@ export default function POSArticlesTab({
         ))}
       </div>
 
+      {/* Panier (au-dessus pour visibilité immédiate du total) */}
+      {cart.length > 0 && (
+        <Card elevated>
+          <h3 className="text-sm font-semibold mb-3">Panier</h3>
+          <div className="space-y-2">
+            {cart.map((item) => (
+              <div key={item.product.id} className="flex items-center justify-between">
+                <p className="text-sm text-text truncate flex-1">{item.product.name}</p>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => updateCartQty(item.product.id, -1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer"><Minus className="w-3 h-3" /></button>
+                  <span className="text-sm font-semibold w-6 text-center">{item.qty}</span>
+                  <button onClick={() => updateCartQty(item.product.id, 1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer"><Plus className="w-3 h-3" /></button>
+                  <span className="text-sm font-semibold text-primary w-14 text-right">{(item.qty * parseFloat(item.product.price)).toFixed(2)}€</span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-separator flex items-center justify-between">
+            <span className="font-semibold">Total</span>
+            <span className="text-xl font-bold text-primary">{cartTotal.toFixed(2)}€</span>
+          </div>
+          <Button className="w-full mt-3" onClick={onCheckout}>
+            Encaisser {cartTotal.toFixed(2)}€
+          </Button>
+        </Card>
+      )}
+
       {/* Grille des produits */}
       {showAll ? (
         <div className="space-y-5">
@@ -113,32 +140,6 @@ export default function POSArticlesTab({
         </div>
       )}
 
-      {/* Panier */}
-      {cart.length > 0 && (
-        <Card elevated>
-          <h3 className="text-sm font-semibold mb-3">Panier</h3>
-          <div className="space-y-2">
-            {cart.map((item) => (
-              <div key={item.product.id} className="flex items-center justify-between">
-                <p className="text-sm text-text truncate flex-1">{item.product.name}</p>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => updateCartQty(item.product.id, -1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer"><Minus className="w-3 h-3" /></button>
-                  <span className="text-sm font-semibold w-6 text-center">{item.qty}</span>
-                  <button onClick={() => updateCartQty(item.product.id, 1)} className="w-6 h-6 rounded-full bg-bg flex items-center justify-center cursor-pointer"><Plus className="w-3 h-3" /></button>
-                  <span className="text-sm font-semibold text-primary w-14 text-right">{(item.qty * parseFloat(item.product.price)).toFixed(2)}€</span>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-separator flex items-center justify-between">
-            <span className="font-semibold">Total</span>
-            <span className="text-xl font-bold text-primary">{cartTotal.toFixed(2)}€</span>
-          </div>
-          <Button className="w-full mt-3" onClick={onCheckout}>
-            Encaisser {cartTotal.toFixed(2)}€
-          </Button>
-        </Card>
-      )}
     </div>
   )
 }
