@@ -221,13 +221,10 @@ export default function AdminProducts() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredProducts.map((p) => (
               <Card key={p.id} className="!p-4 flex flex-col gap-3">
-                {/* Header : icône + nom + statut */}
+                {/* Header : nom + statut */}
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-[10px] bg-primary/5 flex items-center justify-center shrink-0">
-                    <Package className="w-5 h-5 text-primary" />
-                  </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text leading-tight mb-1">{p.name}</p>
+                    <p className="text-sm font-semibold text-text leading-tight mb-1.5">{p.name}</p>
                     <Badge color="primary">{p.category?.name}</Badge>
                   </div>
                   <button onClick={() => toggleProd(p)} className="cursor-pointer shrink-0" title={p.is_active ? 'Désactiver' : 'Activer'}>
