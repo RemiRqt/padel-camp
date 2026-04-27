@@ -207,7 +207,7 @@ export default function AdminTournaments() {
               onExcel={() => exportExcel(exportRows, exportCols, 'tournois')}
               onPDF={() => exportPDF(exportRows, exportCols, 'tournois', 'Padel Camp \u2014 Tournois')}
             />
-            <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Cr\u00e9er</Button>
+            <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />{'Cr\u00e9er'}</Button>
           </div>
         </div>
 

@@ -214,13 +214,13 @@ export default function TournamentDetailView({
         {cancelledRegs.length > 0 && (
           <details className="text-xs">
             <summary className="cursor-pointer text-text-tertiary font-medium">
-              {cancelledRegs.length} inscription{cancelledRegs.length > 1 ? 's' : ''} annul\u00e9e{cancelledRegs.length > 1 ? 's' : ''}
+              {cancelledRegs.length} inscription{cancelledRegs.length > 1 ? 's' : ''} {'annul\u00e9e'}{cancelledRegs.length > 1 ? 's' : ''}
             </summary>
             <div className="mt-2 space-y-1">
               {cancelledRegs.map((reg) => (
                 <div key={reg.id} className="flex items-center justify-between py-2 px-3 rounded-[12px] bg-bg opacity-60">
                   <span className="text-text-secondary">{reg.player1_name} & {reg.player2_name}</span>
-                  <Badge color="danger">Annul\u00e9e</Badge>
+                  <Badge color="danger">{'Annul\u00e9e'}</Badge>
                 </div>
               ))}
             </div>

@@ -210,7 +210,7 @@ export default function AdminCalendar() {
           </div>
           <div className="flex items-center gap-2">
             <Button size="sm" variant="ghost" onClick={() => openCreateE()}>
-              <Plus className="w-4 h-4 mr-1" />\u00c9v\u00e9nement
+              <Plus className="w-4 h-4 mr-1" />{'\u00c9v\u00e9nement'}
             </Button>
             <Button size="sm" onClick={() => openCreateT()}>
               <Plus className="w-4 h-4 mr-1" />Tournoi

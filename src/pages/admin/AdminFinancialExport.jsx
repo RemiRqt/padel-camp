@@ -36,8 +36,8 @@ const TVA_SUMMARY_COLUMNS = [
 ]
 
 function toToday() { return new Date().toISOString().split('T')[0] }
-function toMonthStart() {
-  const d = new Date(); d.setDate(1)
+function toWeekAgo() {
+  const d = new Date(); d.setDate(d.getDate() - 6)
   return d.toISOString().split('T')[0]
 }
 
@@ -119,7 +119,7 @@ function formatSummary(b) {
 }
 
 export default function AdminFinancialExport() {
-  const [from, setFrom] = useState(toMonthStart())
+  const [from, setFrom] = useState(toWeekAgo())
   const [to, setTo] = useState(toToday())
   const [txs, setTxs] = useState([])
   const [loading, setLoading] = useState(false)
