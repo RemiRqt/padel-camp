@@ -69,7 +69,7 @@ export default function usePOSHandlers({ dateStr, selectedDate, pricingRules, as
         const { categories: cats, products: prods } = await fetchActiveCategoriesAndProducts()
         setCategories(cats)
         setProducts(prods)
-        if (cats[0]) setActiveCat(cats[0].id)
+        // activeCat reste null par défaut → "Tout voir" sélectionné
       } catch (err) { console.error('[POS] product fetch error:', err) }
     }
     loadProducts()
