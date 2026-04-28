@@ -6,6 +6,7 @@ import {
   LayoutDashboard, Users, Settings, ShoppingCart, Package,
   CreditCard, LogOut, Shield, ChevronRight, Heart, FileBarChart
 } from 'lucide-react'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 const userLinks = [
   { to: '/dashboard', icon: Home, label: 'Accueil' },
@@ -65,15 +66,16 @@ export default function Header() {
             </div>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
             {user && profile && (
-              <Link to="/profile" className="hidden sm:flex items-center gap-2">
+              <Link to="/profile" className="hidden sm:flex items-center gap-2 mr-2">
                 <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
                   <span className="text-xs font-bold text-primary">{profile.display_name?.charAt(0)?.toUpperCase()}</span>
                 </div>
                 <span className="text-sm font-medium text-text">{profile.display_name?.split(' ')[0]}</span>
               </Link>
             )}
+            {user && <NotificationBell />}
             <button
               onClick={() => setOpen(!open)}
               className="w-10 h-10 rounded-xl flex items-center justify-center hover:bg-bg transition-colors cursor-pointer"

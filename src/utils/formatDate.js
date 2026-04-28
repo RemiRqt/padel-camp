@@ -56,4 +56,18 @@ export function dayNum(date) {
   return new Date(date).getDate()
 }
 
+export function formatRelativeTime(date) {
+  const now = new Date()
+  const d = new Date(date)
+  const diffSec = Math.floor((now - d) / 1000)
+  if (diffSec < 60) return 'à l\'instant'
+  const diffMin = Math.floor(diffSec / 60)
+  if (diffMin < 60) return `il y a ${diffMin} min`
+  const diffHr = Math.floor(diffMin / 60)
+  if (diffHr < 24) return `il y a ${diffHr} h`
+  const diffDay = Math.floor(diffHr / 24)
+  if (diffDay < 7) return `il y a ${diffDay} j`
+  return formatDateShort(d)
+}
+
 export { DAYS, DAYS_SHORT, MONTHS, MONTHS_SHORT, MONTHS_TINY }

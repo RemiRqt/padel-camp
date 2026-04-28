@@ -4,6 +4,7 @@ import {
   Home, CalendarDays, Trophy, User, Menu, Heart,
   LayoutDashboard, Users, Settings, ShoppingCart, Package, CreditCard, Ticket, Calendar, FileBarChart, LogOut
 } from 'lucide-react'
+import NotificationBell from '@/components/notifications/NotificationBell'
 
 const userLinks = [
   { to: '/dashboard', icon: Home, label: 'Accueil' },
@@ -62,10 +63,11 @@ export default function Sidebar() {
         <div className="w-12 h-12 flex items-center justify-center shrink-0">
           <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full object-contain" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <h1 className="text-sm font-bold text-text leading-tight">Padel Camp</h1>
           <p className="text-xs text-text-secondary">Achères</p>
         </div>
+        <NotificationBell align="left" />
       </div>
 
       <nav className="flex flex-col gap-1 flex-1 overflow-y-auto">
