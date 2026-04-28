@@ -46,7 +46,7 @@ export async function fetchUserDashboard(userId) {
 
 export async function fetchAdminDashboard(from, to) {
   const today = toDateString(new Date())
-  const [mRes, tbRes, txRes, bRes, ttRes, drRes] = await Promise.all([
+  const [mRes, tbRes, txRes, bRes, ttRes, drRes, kpiRes] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact', head: true }),
     supabase.from('bookings').select('id', { count: 'exact', head: true })
       .eq('date', today).eq('status', 'confirmed'),
@@ -65,12 +65,16 @@ export async function fetchAdminDashboard(from, to) {
       .in('status', ['open', 'full', 'closed']),
     // Roll-up serveur du CA quotidien : ≤ 31 lignes, pas de cap PostgREST
     supabase.rpc('admin_daily_revenue', { p_from: from, p_to: to }),
+    // KPIs agrégés côté serveur : 1 ligne, pas de cap PostgREST
+    supabase.rpc('admin_period_kpis', { p_from: from, p_to: to }),
   ])
 
   if (txRes.error) throw txRes.error
   if (bRes.error) throw bRes.error
   if (drRes.error) throw drRes.error
+  if (kpiRes.error) throw kpiRes.error
 
+  const k = (kpiRes.data && kpiRes.data[0]) || {}
   return {
     membersCount: mRes.count || 0,
     todayBookings: tbRes.count || 0,
@@ -78,6 +82,12 @@ export async function fetchAdminDashboard(from, to) {
     bookings: bRes.data || [],
     tournamentsCount: ttRes.count || 0,
     dailyRevenue: drRes.data || [],
+    kpis: {
+      caSessions:         Number(k.ca_sessions)         || 0,
+      caArticles:         Number(k.ca_articles)         || 0,
+      recharges:          Number(k.recharges)           || 0,
+      encaissementCaisse: Number(k.encaissement_caisse) || 0,
+    },
   }
 }
 

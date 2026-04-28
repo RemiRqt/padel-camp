@@ -83,6 +83,7 @@ export default function AdminDash() {
   const [todayBookings, setTodayBookings] = useState(0)
   const [transactions, setTransactions] = useState([])
   const [dailyRevenue, setDailyRevenue] = useState([])
+  const [serverKpis, setServerKpis] = useState({ caSessions: 0, caArticles: 0, recharges: 0, encaissementCaisse: 0 })
   const [bookings, setBookings] = useState([])
   const [courtOccupancy, setCourtOccupancy] = useState([])
   const [tournamentsCount, setTournamentsCount] = useState(0)
@@ -97,6 +98,7 @@ export default function AdminDash() {
         setTodayBookings(result.todayBookings)
         setTransactions(result.transactions)
         setDailyRevenue(result.dailyRevenue || [])
+        setServerKpis(result.kpis || { caSessions: 0, caArticles: 0, recharges: 0, encaissementCaisse: 0 })
         setBookings(result.bookings)
         setTournamentsCount(result.tournamentsCount)
 
@@ -133,25 +135,12 @@ export default function AdminDash() {
     return { paid, pending }
   }, [bookings])
 
-  // Compute KPIs : CA = sessions (toutes méthodes) + articles (toutes méthodes)
-  const kpis = useMemo(() => {
-    let caSessions = 0, caArticles = 0, recharges = 0, encaissementCaisse = 0
-    transactions.forEach((tx) => {
-      const amount = parseFloat(tx.amount) || 0
-      const isSession = tx.type === 'debit_session'
-                     || (tx.type === 'external_payment' && tx.booking_id)
-      const isArticle = tx.type === 'debit_product'
-                     || (tx.type === 'external_payment' && tx.product_id)
-      if (isSession) caSessions += amount
-      if (isArticle) caArticles += amount
-      if (tx.type === 'credit') recharges += amount
-      // Encaissement caisse : argent réel entré (CB + cash, tous types confondus)
-      if (tx.payment_method === 'cb' || tx.payment_method === 'cash') {
-        encaissementCaisse += amount
-      }
-    })
-    return { caSessions, caArticles, recharges, encaissementCaisse, caTotal: caSessions + caArticles }
-  }, [transactions])
+  // KPIs : nourris par le roll-up serveur (admin_period_kpis RPC),
+  // pas de cap PostgREST quel que soit le volume de transactions.
+  const kpis = useMemo(() => ({
+    ...serverKpis,
+    caTotal: serverKpis.caSessions + serverKpis.caArticles,
+  }), [serverKpis])
 
   // CA par jour : nourri par le roll-up serveur (admin_daily_revenue RPC),
   // pas de risque de cap PostgREST quel que soit le volume de transactions.
