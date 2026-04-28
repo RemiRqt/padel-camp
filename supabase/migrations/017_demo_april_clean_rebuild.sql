@@ -6,12 +6,16 @@
 --   2) Supprime les transactions de session/article/external d'avril
 --   3) Supprime les booking_players des bookings d'avril
 --   4) Supprime les bookings d'avril
---   5) Régénère les bookings du 1er au 28 avril en évitant les
+--   5) Prime les wallets : chaque membre est crédité fin mars pour
+--      atteindre un solde minimum confortable (≥ 280 €). Une transaction
+--      credit (formule, payment_method CB ou cash) est créée pour chaque
+--      recharge afin que le rapport financier reste cohérent.
+--   6) Régénère les bookings du 1er au 28 avril en évitant les
 --      créneaux bloqués par tournois/événements
---   6) Règle les sessions (4 joueurs/résa, mix wallet 70 / CB 20 / cash 10
+--   7) Règle les sessions (4 joueurs/résa, mix wallet 85 / CB 10 / cash 5
 --      avec fallback CB si solde insuffisant) avec les vrais prix
---   7) Génère 2-5 ventes POS par jour
---   8) Recalcule la TVA sur les ventes POS
+--   8) Génère 2-5 ventes POS par jour (mix wallet 75 / CB 15 / cash 10)
+--   9) Recalcule la TVA sur les ventes POS
 --
 -- Idempotent : peut être ré-exécuté sans risque (wipe + rebuild).
 -- Ne touche ni aux recharges (transactions credit), ni aux tournois,
@@ -68,6 +72,87 @@ BEGIN
 
   RAISE NOTICE 'Étape 1 OK : % wallets recrédités, % tx supprimées, % bp supprimés, % bookings supprimés',
     refunded_users, deleted_tx, deleted_bp, deleted_bk;
+END $$;
+
+-- =========================================
+-- ÉTAPE 1.5 : prime wallets — chaque membre atteint ≥ 280 € avant le 1er avril
+-- Une transaction credit (formule) est créée pour chaque recharge,
+-- payment_method CB (70 %) ou espèces (30 %), datée fin mars.
+-- =========================================
+DO $$
+DECLARE
+  m            RECORD;
+  admin_id     UUID;
+  current_bal  DECIMAL;
+  needed       DECIMAL;
+  amount_paid  DECIMAL;
+  amount_credited DECIMAL;
+  bonus_amount DECIMAL;
+  pay_method   TEXT;
+  recharge_ts  TIMESTAMPTZ;
+  primed_count INT := 0;
+BEGIN
+  SELECT id INTO admin_id FROM profiles WHERE role = 'admin' ORDER BY created_at LIMIT 1;
+
+  FOR m IN
+    SELECT id, balance, balance_bonus
+    FROM profiles
+    WHERE id NOT IN (SELECT id FROM auth.users WHERE email = 'rranquet@gmail.com')
+  LOOP
+    current_bal := m.balance + m.balance_bonus;
+    IF current_bal >= 280 THEN
+      CONTINUE;
+    END IF;
+
+    needed := 280 - current_bal;
+
+    -- Choix de la formule (paid → credited avec bonus) :
+    --   < 60 € manquant : 100 € payés → 110 € crédités (bonus 10 %)
+    --   60-150 € manquant : 200 € payés → 230 € crédités (bonus 15 %)
+    --   > 150 € manquant : 300 € payés → 360 € crédités (bonus 20 %)
+    IF needed < 60 THEN
+      amount_paid := 100; amount_credited := 110;
+    ELSIF needed < 150 THEN
+      amount_paid := 200; amount_credited := 230;
+    ELSE
+      amount_paid := 300; amount_credited := 360;
+    END IF;
+    bonus_amount := amount_credited - amount_paid;
+
+    -- 70 % CB, 30 % cash
+    IF random() < 0.70 THEN
+      pay_method := 'cb';
+    ELSE
+      pay_method := 'cash';
+    END IF;
+
+    recharge_ts := '2026-03-25'::TIMESTAMPTZ + (random() * 6)::INT * INTERVAL '1 day'
+                   + (random() * 12 + 9)::INT * INTERVAL '1 hour';
+
+    -- Crédite : montant_payé sur balance, bonus sur balance_bonus
+    UPDATE profiles
+    SET balance       = balance       + amount_paid,
+        balance_bonus = balance_bonus + bonus_amount
+    WHERE id = m.id;
+
+    -- Transaction credit (recharge wallet via formule)
+    INSERT INTO transactions (
+      user_id, type, amount, bonus_amount, description,
+      performed_by, payment_method,
+      formula_amount_paid, formula_amount_credited, formula_bonus,
+      created_at
+    ) VALUES (
+      m.id, 'credit', amount_paid, bonus_amount,
+      'Recharge wallet (' || amount_paid::TEXT || ' € → ' || amount_credited::TEXT || ' €)',
+      admin_id, pay_method::payment_method,
+      amount_paid, amount_credited, bonus_amount,
+      recharge_ts
+    );
+
+    primed_count := primed_count + 1;
+  END LOOP;
+
+  RAISE NOTICE 'Étape 1.5 OK : % wallets primés (≥ 280 € avant avril)', primed_count;
 END $$;
 
 -- =========================================
@@ -193,8 +278,8 @@ BEGIN
 
         FOR i IN 1..4 LOOP
           r := random();
-          IF r < 0.70 THEN pay_method := 'balance';
-          ELSIF r < 0.90 THEN pay_method := 'cb';
+          IF r < 0.85 THEN pay_method := 'balance';
+          ELSIF r < 0.95 THEN pay_method := 'cb';
           ELSE pay_method := 'cash';
           END IF;
 
@@ -294,8 +379,8 @@ BEGIN
       sale_ts   := d::TIMESTAMPTZ + (8 + random() * 14) * INTERVAL '1 hour';
 
       r := random();
-      IF r < 0.60 THEN pay_method := 'balance';
-      ELSIF r < 0.85 THEN pay_method := 'cb';
+      IF r < 0.75 THEN pay_method := 'balance';
+      ELSIF r < 0.90 THEN pay_method := 'cb';
       ELSE pay_method := 'cash';
       END IF;
 
