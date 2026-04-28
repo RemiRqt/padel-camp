@@ -41,11 +41,10 @@ function monthBounds(year, month) {
   return { from: toDateString(firstDay), to: toDateString(to) }
 }
 
-// Pure function : pour chaque jour de la période, somme Sessions + Articles
-// + cumul total (running sum) sur tout le mois.
-// Tous les jours sont initialisés à 0 pour que le graphe affiche bien
-// la période entière, même les jours sans transaction.
-function computeRevenueByDay(transactions, from, to) {
+// Pure function : à partir du roll-up serveur (≤ 31 lignes/jour), produit
+// la série complète pour le graphe avec 0 sur les jours sans tx + cumul.
+// Garantit qu'on n'a pas de "trou" dans l'axe X même en jour vide.
+function buildRevenueByDay(dailyRevenue, from, to) {
   const map = {}
   const start = new Date(from)
   const end = new Date(to)
@@ -53,16 +52,11 @@ function computeRevenueByDay(transactions, from, to) {
     const key = toDateString(d)
     map[key] = { date: key, sessions: 0, articles: 0 }
   }
-  transactions.forEach((tx) => {
-    const day = (tx.created_at || '').split('T')[0]
-    if (!map[day]) return
-    const amount = Number(tx.amount) || 0
-    const isSession = tx.type === 'debit_session'
-                   || (tx.type === 'external_payment' && tx.booking_id)
-    const isArticle = tx.type === 'debit_product'
-                   || (tx.type === 'external_payment' && tx.product_id)
-    if (isSession) map[day].sessions += amount
-    if (isArticle) map[day].articles += amount
+  ;(dailyRevenue || []).forEach((row) => {
+    const key = row.day // YYYY-MM-DD (Postgres DATE → ISO string)
+    if (!map[key]) return
+    map[key].sessions = Number(row.sessions) || 0
+    map[key].articles = Number(row.articles) || 0
   })
   const sorted = Object.values(map).sort((a, b) => a.date.localeCompare(b.date))
   let cumul = 0
@@ -88,6 +82,7 @@ export default function AdminDash() {
   const [membersCount, setMembersCount] = useState(0)
   const [todayBookings, setTodayBookings] = useState(0)
   const [transactions, setTransactions] = useState([])
+  const [dailyRevenue, setDailyRevenue] = useState([])
   const [bookings, setBookings] = useState([])
   const [courtOccupancy, setCourtOccupancy] = useState([])
   const [tournamentsCount, setTournamentsCount] = useState(0)
@@ -101,6 +96,7 @@ export default function AdminDash() {
         setMembersCount(result.membersCount)
         setTodayBookings(result.todayBookings)
         setTransactions(result.transactions)
+        setDailyRevenue(result.dailyRevenue || [])
         setBookings(result.bookings)
         setTournamentsCount(result.tournamentsCount)
 
@@ -157,10 +153,11 @@ export default function AdminDash() {
     return { caSessions, caArticles, recharges, encaissementCaisse, caTotal: caSessions + caArticles }
   }, [transactions])
 
-  // CA par jour : Sessions, Articles + cumul total (running sum)
+  // CA par jour : nourri par le roll-up serveur (admin_daily_revenue RPC),
+  // pas de risque de cap PostgREST quel que soit le volume de transactions.
   const revenueByDay = useMemo(
-    () => computeRevenueByDay(transactions, from, to),
-    [transactions, from, to]
+    () => buildRevenueByDay(dailyRevenue, from, to),
+    [dailyRevenue, from, to]
   )
 
   // Transaction type breakdown for pie
