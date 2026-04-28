@@ -2,10 +2,19 @@ import { useState, useEffect } from 'react'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
-import { fetchTransactionsByPeriod } from '@/services/transactionService'
-import { groupTvaByRate, formatTvaRate } from '@/utils/tva'
+import {
+  fetchFinancialSummary,
+  fetchTransactionsPage,
+  fetchAllTransactionsByPeriod,
+} from '@/services/transactionService'
+import { formatTvaRate } from '@/utils/tva'
 import toast from 'react-hot-toast'
-import { FileBarChart, Download, Printer, RefreshCw, Receipt } from 'lucide-react'
+import {
+  FileBarChart, Download, Printer, RefreshCw, Receipt,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react'
+
+const PAGE_SIZE = 100
 
 const TYPE_LABELS = {
   debit_session: 'Session',
@@ -41,13 +50,11 @@ function toWeekAgo() {
   return d.toISOString().split('T')[0]
 }
 
-// Presets : retourne { from, to } pour la semaine/mois/année courants
 const PRESETS = {
   week: () => {
     const today = new Date()
-    const dow = today.getDay() // 0=Dim..6=Sam
-    // Convention club : lundi premier jour. Calculer le lundi de la semaine en cours.
-    const offsetToMonday = (dow + 6) % 7  // Lun=0, Dim=6
+    const dow = today.getDay()
+    const offsetToMonday = (dow + 6) % 7
     const monday = new Date(today)
     monday.setDate(today.getDate() - offsetToMonday)
     return { from: monday.toISOString().split('T')[0], to: toToday() }
@@ -62,62 +69,13 @@ const PRESETS = {
   },
 }
 
-function computeKPIs(txs) {
-  // Sessions = wallet (debit_session) + externes (external_payment AVEC booking_id)
-  const sessionsWallet = txs.filter((t) => t.type === 'debit_session')
-  const sessionsExternal = txs.filter((t) => t.type === 'external_payment' && t.booking_id)
-  const sessionsAll = [...sessionsWallet, ...sessionsExternal]
-
-  // Articles = wallet (debit_product) + externes (external_payment AVEC product_id)
-  const articlesWallet = txs.filter((t) => t.type === 'debit_product')
-  const articlesExternal = txs.filter((t) => t.type === 'external_payment' && t.product_id)
-  const articlesAll = [...articlesWallet, ...articlesExternal]
-
-  // Rechargements = type=credit (CB ou cash uniquement, jamais wallet)
-  const recharges = txs.filter((t) => t.type === 'credit')
-
-  const sum = (arr) => arr.reduce((s, t) => s + (Number(t.amount) || 0), 0)
-  const sumByMethod = (arr, method) => arr
-    .filter((t) => t.payment_method === method)
-    .reduce((s, t) => s + (Number(t.amount) || 0), 0)
-
-  // Encaissement caisse = vraie entrée d'argent (CB + Espèces sur tout)
-  // ⚠️ pas de double comptage : un débit wallet ne re-compte pas, l'argent
-  //    avait déjà été encaissé via la recharge antérieure.
-  const totalCB = sumByMethod(txs, 'cb')
-  const totalCash = sumByMethod(txs, 'cash')
-  // Wallet débité = consommation du solde (sessions + articles payés en wallet)
-  const totalWalletDebited = sumByMethod(sessionsWallet, 'balance')
-                            + sumByMethod(articlesWallet, 'balance')
-
-  return {
-    sessions: {
-      count: sessionsAll.length,
-      total: sum(sessionsAll),
-      wallet: sumByMethod(sessionsAll, 'balance'),
-      cb: sumByMethod(sessionsAll, 'cb'),
-      cash: sumByMethod(sessionsAll, 'cash'),
-    },
-    articles: {
-      count: articlesAll.length,
-      total: sum(articlesAll),
-      wallet: sumByMethod(articlesAll, 'balance'),
-      cb: sumByMethod(articlesAll, 'cb'),
-      cash: sumByMethod(articlesAll, 'cash'),
-    },
-    recharges: {
-      count: recharges.length,
-      total: sum(recharges),
-      cb: sumByMethod(recharges, 'cb'),
-      cash: sumByMethod(recharges, 'cash'),
-    },
-    encaissement: {
-      cb: totalCB,
-      cash: totalCash,
-      walletDebited: totalWalletDebited,
-      total: totalCB + totalCash,
-    },
-  }
+const EMPTY_SUMMARY = {
+  sessions: { count: 0, total: 0, wallet: 0, cb: 0, cash: 0 },
+  articles: { count: 0, total: 0, wallet: 0, cb: 0, cash: 0 },
+  recharges: { count: 0, total: 0, cb: 0, cash: 0 },
+  encaissement: { cb: 0, cash: 0, total: 0, walletDebited: 0 },
+  totals: { ht: 0, tva: 0, ttc: 0 },
+  counts: { balance: 0, cb: 0, cash: 0, total: 0 },
 }
 
 function KPICard({ label, total, breakdown, count }) {
@@ -169,71 +127,97 @@ function formatSummary(b) {
 export default function AdminFinancialExport() {
   const [from, setFrom] = useState(toWeekAgo())
   const [to, setTo] = useState(toToday())
-  const [txs, setTxs] = useState([])
-  const [loading, setLoading] = useState(false)
+
+  // Données server-side (RPCs)
+  const [summary, setSummary] = useState(EMPTY_SUMMARY)
+  const [tvaBreakdown, setTvaBreakdown] = useState([])
+
+  // Détail paginé
+  const [pageTxs, setPageTxs] = useState([])
+  const [pageCount, setPageCount] = useState(0)
+  const [page, setPage] = useState(0)
   const [activeTab, setActiveTab] = useState('all')
+
+  const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  const load = async () => {
+  const totalTvaCollected = tvaBreakdown.reduce((s, b) => s + b.tva, 0)
+  const methodFilter = activeTab === 'all' ? null : activeTab
+
+  const loadAll = async () => {
     setLoading(true)
     try {
-      const data = await fetchTransactionsByPeriod(from, to)
-      setTxs(data)
-    } catch (err) { toast.error(err.message) }
-    finally { setLoading(false) }
-  }
-
-  useEffect(() => { load() }, [from, to])
-
-  const kpis = computeKPIs(txs)
-
-  // Ventilation TVA : on exclut les crédits (pas de TVA à la collecte — cf. migration)
-  const taxableTxs = txs.filter((t) => t.type !== 'credit' && t.tva_rate != null && Number(t.tva_rate) > 0)
-  const tvaBreakdown = groupTvaByRate(taxableTxs)
-  const totalTvaCollected = tvaBreakdown.reduce((s, b) => s + b.tva, 0)
-
-  const filteredTxs = activeTab === 'all' ? txs
-    : txs.filter((t) => t.payment_method === activeTab)
-
-  const handleExcelExport = async () => {
-    setExporting(true)
-    try {
-      const { exportComptableExcel } = await import('@/utils/exportComptable')
-      await exportComptableExcel({
-        from, to, txs, kpis, tvaBreakdown,
-        filename: `rapport-financier-${from}-${to}`,
-      })
+      const [s, p] = await Promise.all([
+        fetchFinancialSummary(from, to),
+        fetchTransactionsPage(from, to, { page: 0, pageSize: PAGE_SIZE, method: methodFilter }),
+      ])
+      setSummary(s.summary)
+      setTvaBreakdown(s.tvaBreakdown)
+      setPageTxs(p.data)
+      setPageCount(p.count)
+      setPage(0)
     } catch (err) {
       console.error(err)
-      toast.error('Erreur export Excel')
+      toast.error(err.message || 'Erreur chargement rapport')
+    } finally { setLoading(false) }
+  }
+
+  useEffect(() => { loadAll() }, [from, to])
+
+  // Pagination dans la table : on ne recharge que la page (pas la summary)
+  useEffect(() => {
+    let alive = true
+    async function loadPage() {
+      try {
+        const p = await fetchTransactionsPage(from, to, {
+          page, pageSize: PAGE_SIZE, method: methodFilter,
+        })
+        if (!alive) return
+        setPageTxs(p.data)
+        setPageCount(p.count)
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadPage()
+    return () => { alive = false }
+  }, [page, activeTab])
+
+  const handleExport = async (kind) => {
+    setExporting(true)
+    try {
+      // Fetch toutes les tx pour la période en batches (contourne le cap)
+      const allTxs = await fetchAllTransactionsByPeriod(from, to)
+      const kpis = {
+        sessions: summary.sessions,
+        articles: summary.articles,
+        recharges: summary.recharges,
+        encaissement: summary.encaissement,
+      }
+      const mod = await import('@/utils/exportComptable')
+      const fn = kind === 'excel' ? mod.exportComptableExcel : mod.exportComptablePDF
+      await fn({
+        from, to,
+        txs: allTxs,
+        kpis,
+        tvaBreakdown,
+        filename: `rapport-financier-${from}-${to}`,
+      })
+      toast.success(`Export ${kind === 'excel' ? 'Excel' : 'PDF'} prêt (${allTxs.length} tx)`)
+    } catch (err) {
+      console.error(err)
+      toast.error(`Erreur export ${kind}`)
     } finally { setExporting(false) }
   }
 
-  const handlePDFExport = async () => {
-    setExporting(true)
-    try {
-      const { exportComptablePDF } = await import('@/utils/exportComptable')
-      await exportComptablePDF({
-        from, to, txs, kpis, tvaBreakdown,
-        filename: `rapport-financier-${from}-${to}`,
-      })
-    } catch (err) {
-      console.error(err)
-      toast.error('Erreur export PDF')
-    } finally { setExporting(false) }
-  }
-
-  const countMethod = (m) => txs.filter((t) => t.payment_method === m).length
   const tabs = [
-    { id: 'all', label: `Tout (${txs.length})` },
-    { id: 'balance', label: `Wallet (${countMethod('balance')})` },
-    { id: 'cb', label: `CB (${countMethod('cb')})` },
-    { id: 'cash', label: `Espèces (${countMethod('cash')})` },
+    { id: 'all',     label: `Tout (${summary.counts.total})` },
+    { id: 'balance', label: `Wallet (${summary.counts.balance})` },
+    { id: 'cb',      label: `CB (${summary.counts.cb})` },
+    { id: 'cash',    label: `Espèces (${summary.counts.cash})` },
   ]
 
-  const filteredTotal = filteredTxs.reduce((s, t) => s + (Number(t.amount) || 0), 0)
-  const filteredHt = filteredTxs.reduce((s, t) => s + (Number(t.amount_ht) || 0), 0)
-  const filteredTva = filteredTxs.reduce((s, t) => s + (Number(t.amount_tva) || 0), 0)
+  const totalPages = Math.max(1, Math.ceil(pageCount / PAGE_SIZE))
 
   return (
     <PageWrapper>
@@ -245,7 +229,6 @@ export default function AdminFinancialExport() {
 
         {/* Période */}
         <Card>
-          {/* Préfiltres rapides */}
           <div className="flex flex-wrap gap-2 mb-3">
             {[
               { id: 'week', label: 'Cette semaine' },
@@ -275,7 +258,7 @@ export default function AdminFinancialExport() {
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
                 className="border border-separator rounded-[12px] px-3 py-2 text-sm text-text bg-bg" />
             </div>
-            <Button onClick={load} loading={loading} variant="ghost">
+            <Button onClick={loadAll} loading={loading} variant="ghost">
               <RefreshCw className="w-4 h-4 mr-2" />Actualiser
             </Button>
           </div>
@@ -285,55 +268,55 @@ export default function AdminFinancialExport() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <KPICard
             label="Sessions"
-            total={kpis.sessions.total}
-            count={kpis.sessions.count}
+            total={summary.sessions.total}
+            count={summary.sessions.count}
             breakdown={[
-              { label: 'Wallet', value: kpis.sessions.wallet },
-              { label: 'CB', value: kpis.sessions.cb },
-              { label: 'Espèces', value: kpis.sessions.cash },
+              { label: 'Wallet', value: summary.sessions.wallet },
+              { label: 'CB', value: summary.sessions.cb },
+              { label: 'Espèces', value: summary.sessions.cash },
             ]}
           />
           <KPICard
             label="Articles"
-            total={kpis.articles.total}
-            count={kpis.articles.count}
+            total={summary.articles.total}
+            count={summary.articles.count}
             breakdown={[
-              { label: 'Wallet', value: kpis.articles.wallet },
-              { label: 'CB', value: kpis.articles.cb },
-              { label: 'Espèces', value: kpis.articles.cash },
+              { label: 'Wallet', value: summary.articles.wallet },
+              { label: 'CB', value: summary.articles.cb },
+              { label: 'Espèces', value: summary.articles.cash },
             ]}
           />
           <KPICard
             label="Rechargements"
-            total={kpis.recharges.total}
-            count={kpis.recharges.count}
+            total={summary.recharges.total}
+            count={summary.recharges.count}
             breakdown={[
-              { label: 'CB', value: kpis.recharges.cb },
-              { label: 'Espèces', value: kpis.recharges.cash },
+              { label: 'CB', value: summary.recharges.cb },
+              { label: 'Espèces', value: summary.recharges.cash },
             ]}
           />
         </div>
 
-        {/* Encaissement caisse — vraie entrée d'argent */}
+        {/* Encaissement caisse */}
         <Card elevated>
           <p className="text-xs font-semibold text-text-secondary uppercase mb-3">Encaissement caisse</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <p className="text-xs text-text-tertiary mb-0.5">Total CB</p>
-              <p className="text-lg font-bold text-primary">{kpis.encaissement.cb.toFixed(2)} €</p>
+              <p className="text-lg font-bold text-primary">{summary.encaissement.cb.toFixed(2)} €</p>
             </div>
             <div>
               <p className="text-xs text-text-tertiary mb-0.5">Total espèces</p>
-              <p className="text-lg font-bold text-primary">{kpis.encaissement.cash.toFixed(2)} €</p>
+              <p className="text-lg font-bold text-primary">{summary.encaissement.cash.toFixed(2)} €</p>
             </div>
             <div>
               <p className="text-xs text-text-tertiary mb-0.5">Wallet débité</p>
-              <p className="text-lg font-bold text-text-secondary">{kpis.encaissement.walletDebited.toFixed(2)} €</p>
+              <p className="text-lg font-bold text-text-secondary">{summary.encaissement.walletDebited.toFixed(2)} €</p>
               <p className="text-[10px] text-text-tertiary leading-tight">déjà encaissé via recharges</p>
             </div>
             <div className="border-l border-separator pl-3">
               <p className="text-xs text-text-tertiary mb-0.5">Total caisse</p>
-              <p className="text-lg font-bold text-lime-600">{kpis.encaissement.total.toFixed(2)} €</p>
+              <p className="text-lg font-bold text-lime-600">{summary.encaissement.total.toFixed(2)} €</p>
               <p className="text-[10px] text-text-tertiary leading-tight">CB + espèces</p>
             </div>
           </div>
@@ -379,10 +362,10 @@ export default function AdminFinancialExport() {
 
         {/* Export */}
         <div className="flex gap-2 flex-wrap">
-          <Button variant="ghost" size="sm" onClick={handleExcelExport} loading={exporting}>
-            <Download className="w-4 h-4 mr-1.5" />Excel
+          <Button variant="ghost" size="sm" onClick={() => handleExport('excel')} loading={exporting}>
+            <Download className="w-4 h-4 mr-1.5" />Excel comptable
           </Button>
-          <Button variant="ghost" size="sm" onClick={handlePDFExport} loading={exporting}>
+          <Button variant="ghost" size="sm" onClick={() => handleExport('pdf')} loading={exporting}>
             <Download className="w-4 h-4 mr-1.5" />PDF
           </Button>
           <Button variant="ghost" size="sm" onClick={() => window.print()}>
@@ -390,11 +373,11 @@ export default function AdminFinancialExport() {
           </Button>
         </div>
 
-        {/* Table */}
+        {/* Détail des transactions (paginé) */}
         <Card>
           <div className="flex gap-1 mb-4 overflow-x-auto pb-1">
             {tabs.map((t) => (
-              <button key={t.id} onClick={() => setActiveTab(t.id)}
+              <button key={t.id} onClick={() => { setActiveTab(t.id); setPage(0) }}
                 className={`px-3 py-1.5 rounded-[10px] text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
                   activeTab === t.id ? 'bg-primary text-white' : 'bg-bg text-text-secondary hover:bg-primary/10'
                 }`}
@@ -406,7 +389,7 @@ export default function AdminFinancialExport() {
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => <div key={i} className="h-10 bg-bg rounded-[8px] animate-pulse" />)}
             </div>
-          ) : filteredTxs.length === 0 ? (
+          ) : pageTxs.length === 0 ? (
             <p className="text-sm text-text-tertiary text-center py-8">Aucune transaction sur cette période</p>
           ) : (
             <div className="overflow-x-auto -mx-4 sm:mx-0">
@@ -419,7 +402,7 @@ export default function AdminFinancialExport() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-separator">
-                  {filteredTxs.map((t) => {
+                  {pageTxs.map((t) => {
                     const row = formatTx(t)
                     return (
                       <tr key={t.id} className="hover:bg-bg/50 transition-colors">
@@ -436,12 +419,28 @@ export default function AdminFinancialExport() {
             </div>
           )}
 
-          {filteredTxs.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-separator flex flex-wrap justify-between gap-2 text-xs text-text-secondary">
-              <span>{filteredTxs.length} transaction{filteredTxs.length > 1 ? 's' : ''}</span>
-              <span className="text-text-tertiary">HT : {filteredHt.toFixed(2)} €</span>
-              <span className="text-text-tertiary">TVA : {filteredTva.toFixed(2)} €</span>
-              <span className="font-semibold text-text">TTC : {filteredTotal.toFixed(2)} €</span>
+          {/* Footer paginé */}
+          {pageCount > 0 && (
+            <div className="mt-3 pt-3 border-t border-separator flex flex-wrap items-center justify-between gap-3 text-xs text-text-secondary">
+              <span>
+                {pageCount} transaction{pageCount > 1 ? 's' : ''} au total · page {page + 1} / {totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="p-1.5 rounded-[8px] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  disabled={page >= totalPages - 1}
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  className="p-1.5 rounded-[8px] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-bg cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           )}
         </Card>
