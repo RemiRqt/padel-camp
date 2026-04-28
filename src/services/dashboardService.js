@@ -93,9 +93,10 @@ export async function fetchAdminDashboard(from, to) {
 
 export async function fetchLandingData() {
   const today = new Date().toISOString().split('T')[0]
-  const [prRes, tRes, eRes, cfgRes, bRes] = await Promise.all([
+  const [prRes, tRes, ttodayRes, eRes, cfgRes, bRes] = await Promise.all([
     supabase.from('pricing_rules').select('id, label, start_time, end_time, days, price_per_slot, is_active').eq('is_active', true).order('start_time'),
     supabase.from('tournaments').select('id, name, date, start_time, level, category, status').in('status', ['open', 'full']).gte('date', today).order('date').limit(3),
+    supabase.from('tournaments').select('id, name, start_time, end_time').eq('date', today).not('status', 'in', '(cancelled,draft)'),
     supabase.from('events').select('id, name, description, date').eq('is_public', true).gte('date', today).order('date').limit(3),
     supabase.from('club_config').select('id, name, address, phone, description, instagram_url, courts_count, court_names, slot_duration, open_time, close_time').single(),
     supabase.rpc('public_today_availability'),
@@ -104,6 +105,7 @@ export async function fetchLandingData() {
   return {
     pricingRules: prRes.data || [],
     tournaments: tRes.data || [],
+    todayTournaments: ttodayRes.data || [],
     events: eRes.data || [],
     config: cfgRes.data,
     todayBookings: bRes.data || [],

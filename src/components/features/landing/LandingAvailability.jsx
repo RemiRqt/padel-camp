@@ -2,11 +2,19 @@ import { Link } from 'react-router-dom'
 import Card from '@/components/ui/Card'
 import { formatTime } from '@/utils/formatDate'
 import { getSlotPrice } from '@/utils/calculatePrice'
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, Trophy } from 'lucide-react'
 
 const COURTS = ['terrain_1', 'terrain_2', 'terrain_3']
 
-export default function LandingAvailability({ slots, bookedSet, pricingRules, loading, user }) {
+const slotInTournament = (slotStart, tournaments) => {
+  return tournaments.some((t) => {
+    const ts = (t.start_time || '').slice(0, 5)
+    const te = (t.end_time   || '').slice(0, 5)
+    return slotStart >= ts && slotStart < te
+  })
+}
+
+export default function LandingAvailability({ slots, bookedSet, pricingRules, tournaments = [], loading, user }) {
   return (
     <Card>
       <div className="flex items-center justify-between mb-4">
@@ -35,28 +43,43 @@ export default function LandingAvailability({ slots, bookedSet, pricingRules, lo
                 const [h, m] = slot.start.split(':').map(Number)
                 const t = new Date(); t.setHours(h, m, 0, 0)
                 return t > now
-              }).slice(0, 6).map((slot) => (
-                <tr key={slot.start} className="border-t border-separator">
-                  <td className="py-1.5 text-xs font-medium text-text">{formatTime(slot.start)}</td>
-                  {COURTS.map((court) => {
-                    const occupied = bookedSet.has(`${court}_${slot.start}`)
-                    return (
-                      <td key={court} className="py-1.5 text-center">
-                        <span className={`inline-block w-full max-w-[56px] py-1 rounded-md text-[10px] font-semibold ${
-                          occupied ? 'bg-danger/10 text-danger/70' : 'bg-success/10 text-success'
-                        }`}>
-                          {occupied ? 'Occupé' : `${(getSlotPrice(pricingRules, new Date(), slot.start) ?? 0).toFixed(0)}€`}
-                        </span>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
+              }).slice(0, 6).map((slot) => {
+                const inTournament = slotInTournament(slot.start, tournaments)
+                return (
+                  <tr key={slot.start} className="border-t border-separator">
+                    <td className="py-1.5 text-xs font-medium text-text">{formatTime(slot.start)}</td>
+                    {COURTS.map((court) => {
+                      if (inTournament) {
+                        return (
+                          <td key={court} className="py-1.5 text-center">
+                            <span className="inline-flex items-center justify-center gap-0.5 w-full max-w-[68px] py-1 rounded-md text-[10px] font-semibold bg-warning/10 text-warning">
+                              <Trophy className="w-2.5 h-2.5" />Tournoi
+                            </span>
+                          </td>
+                        )
+                      }
+                      const occupied = bookedSet.has(`${court}_${slot.start}`)
+                      return (
+                        <td key={court} className="py-1.5 text-center">
+                          <span className={`inline-block w-full max-w-[56px] py-1 rounded-md text-[10px] font-semibold ${
+                            occupied ? 'bg-danger/10 text-danger/70' : 'bg-success/10 text-success'
+                          }`}>
+                            {occupied ? 'Occupé' : `${(getSlotPrice(pricingRules, new Date(), slot.start) ?? 0).toFixed(0)}€`}
+                          </span>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-          <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-text-tertiary">
+          <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-text-tertiary flex-wrap">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-success/20" /> Disponible</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-danger/20" /> Occupé</span>
+            {tournaments.length > 0 && (
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-warning/20" /> Tournoi</span>
+            )}
           </div>
         </div>
       ) : loading ? (

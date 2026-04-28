@@ -20,6 +20,7 @@ export default function Landing() {
   const [events, setEvents] = useState([])
   const [config, setConfig] = useState(null)
   const [todayBookings, setTodayBookings] = useState([])
+  const [todayTournaments, setTodayTournaments] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -31,6 +32,7 @@ export default function Landing() {
         setEvents(result.events)
         if (result.config) setConfig(result.config)
         setTodayBookings(result.todayBookings)
+        setTodayTournaments(result.todayTournaments || [])
       } catch (err) {
         console.error('[Landing] fetch error:', err)
       } finally {
@@ -197,6 +199,7 @@ export default function Landing() {
           slots={slots}
           bookedSet={bookedSet}
           pricingRules={pricingRules}
+          tournaments={todayTournaments}
           loading={loading}
           user={user}
         />
