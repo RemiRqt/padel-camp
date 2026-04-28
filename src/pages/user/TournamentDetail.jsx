@@ -83,7 +83,8 @@ export default function TournamentDetail() {
   if (!tournament) return null
 
   const spotsLeft = tournament.max_teams - regCount
-  const canRegister = tournament.status === 'open' && !userReg
+  const isFull = regCount >= tournament.max_teams || tournament.status === 'full'
+  const canRegister = (tournament.status === 'open' || tournament.status === 'full') && !userReg
   const hasLicense = !!profile?.license_number
   const d = new Date(tournament.date + 'T00:00')
 
@@ -232,46 +233,40 @@ export default function TournamentDetail() {
                 </div>
               </Card>
             ) : (
-              <Link to={`/tournaments/${id}/register`}>
-                <Button className="w-full" size="lg">
-                  <UserPlus className="w-5 h-5 mr-2" />
-                  S'inscrire avec un partenaire
-                </Button>
-              </Link>
+              <div>
+                <Link to={`/tournaments/${id}/register`}>
+                  <Button className="w-full" size="lg" variant={isFull ? 'outline' : 'primary'}>
+                    <UserPlus className="w-5 h-5 mr-2" />
+                    {isFull ? "Rejoindre la liste d'attente" : "S'inscrire avec un partenaire"}
+                  </Button>
+                </Link>
+                {isFull && (
+                  <p className="text-xs text-text-secondary text-center mt-2">
+                    Le tournoi est complet. Votre inscription sera ajoutée à la liste d'attente.
+                  </p>
+                )}
+              </div>
             )}
           </>
         )}
 
-        {/* Registered pairs (public list) */}
+        {/* Registration count (private list) */}
         <Card>
-          <div className="flex items-center gap-2 mb-4">
-            <Users className="w-4 h-4 text-primary" />
-            <h3 className="font-semibold text-text">Paires inscrites ({registrations.length})</h3>
-          </div>
-          {registrations.length > 0 ? (
-            <div className="space-y-2">
-              {registrations.map((reg, i) => (
-                <div key={reg.id} className="flex items-center gap-3 py-2.5 px-3 rounded-[10px] bg-bg">
-                  <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">
-                    {reg.status === 'waitlist' ? `W${reg.position}` : i + 1}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text truncate">
-                      {reg.player1_name} & {reg.player2_name}
-                    </p>
-                  </div>
-                  <Badge color={REG_STATUS_COLORS[reg.status]}>
-                    {reg.status === 'confirmed' ? 'Confirmé'
-                      : reg.status === 'approved' ? 'Validé'
-                      : reg.status === 'waitlist' ? `Attente #${reg.position}`
-                      : REG_STATUS_LABELS[reg.status]}
-                  </Badge>
-                </div>
-              ))}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[10px] bg-primary/10 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-primary" />
             </div>
-          ) : (
-            <p className="text-sm text-text-tertiary text-center py-4">Aucune inscription pour le moment</p>
-          )}
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-text">
+                {registrations.length} paire{registrations.length > 1 ? 's' : ''} inscrite{registrations.length > 1 ? 's' : ''}
+              </p>
+              {userReg?.status === 'waitlist' && userReg.position && (
+                <p className="text-xs text-warning mt-0.5">
+                  Vous êtes en liste d'attente — position #{userReg.position}
+                </p>
+              )}
+            </div>
+          </div>
         </Card>
       </div>
     </PageWrapper>
