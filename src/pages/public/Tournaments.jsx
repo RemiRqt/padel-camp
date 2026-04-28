@@ -179,9 +179,8 @@ const REG_STATUS_COLORS = {
 function TournamentCard({ tournament: t, regCount, isLoggedIn, isPast = false, myRegStatus }) {
   const spotsLeft = t.max_teams - regCount
 
-  return (
-    <Link to={isLoggedIn ? `/tournaments/${t.id}` : '/login'}>
-      <Card className={`!p-0 overflow-hidden hover:shadow-[0_4px_12px_rgba(11,39,120,0.12)] transition-shadow ${isPast ? 'opacity-70' : ''}`}>
+  const cardBody = (
+      <Card className={`!p-0 overflow-hidden transition-shadow ${isPast ? 'opacity-60 grayscale cursor-not-allowed' : 'hover:shadow-[0_4px_12px_rgba(11,39,120,0.12)]'}`}>
         <div className="flex">
           {/* Date block */}
           <div className="w-[72px] bg-primary/5 flex flex-col items-center justify-center shrink-0 py-4">
@@ -239,6 +238,10 @@ function TournamentCard({ tournament: t, regCount, isLoggedIn, isPast = false, m
           </div>
         </div>
       </Card>
-    </Link>
   )
+
+  if (isPast) {
+    return <div aria-disabled>{cardBody}</div>
+  }
+  return <Link to={isLoggedIn ? `/tournaments/${t.id}` : '/login'}>{cardBody}</Link>
 }

@@ -105,8 +105,12 @@ export default function Social() {
 
   const handleSubmitMatch = async () => {
     const { partner, opponent1, opponent2, sets } = matchForm
-    if (!opponent1 || !opponent2) { toast.error('Sélectionnez les 2 adversaires'); return }
-    if (sets[0].s1 === '' || sets[0].s2 === '') { toast.error('Entrez au moins le 1er set'); return }
+    const opp1Final = opponent1 || (opp1Search.trim() ? { name: opp1Search.trim() } : null)
+    const opp2Final = opponent2 || (opp2Search.trim() ? { name: opp2Search.trim() } : null)
+    const partnerFinal = partner || (partnerSearch.trim() ? { name: partnerSearch.trim() } : null)
+
+    if (!opp1Final || !opp2Final) { toast.error('Indique les 2 adversaires'); return }
+    if (sets[0].s1 === '' || sets[0].s2 === '') { toast.error('Entre au moins le 1er set'); return }
 
     setSubmitting(true)
     try {
@@ -122,10 +126,22 @@ export default function Social() {
       })
       const winner = setsWonTeam1 > setsWonTeam2 ? 'team1' : setsWonTeam2 > setsWonTeam1 ? 'team2' : 'team1'
 
-      await createMatch({ player1_id: user.id, player2_id: partner?.id || null, opponent1_id: opponent1.id, opponent2_id: opponent2.id, score_team1: scoreTeam1, score_team2: scoreTeam2, winner })
+      await createMatch({
+        player1_id: user.id,
+        player2_id: partnerFinal?.id || null,
+        partner_name: partnerFinal && !partnerFinal.id ? partnerFinal.name : null,
+        opponent1_id: opp1Final.id || null,
+        opponent1_name: opp1Final.id ? null : opp1Final.name,
+        opponent2_id: opp2Final.id || null,
+        opponent2_name: opp2Final.id ? null : opp2Final.name,
+        score_team1: scoreTeam1,
+        score_team2: scoreTeam2,
+        winner,
+      })
       toast.success('Match enregistré !')
       setMatchOpen(false)
       setMatchForm({ partner: null, opponent1: null, opponent2: null, sets: [{ s1: '', s2: '' }, { s1: '', s2: '' }] })
+      setPartnerSearch(''); setOpp1Search(''); setOpp2Search('')
       fetchAll()
     } catch (err) { toast.error(err.message) }
     finally { setSubmitting(false) }
@@ -188,12 +204,18 @@ export default function Social() {
 
         {/* Quick actions */}
         <div className="grid grid-cols-2 gap-3">
-          <Button variant="ghost" className="!justify-start" onClick={() => setAddOpen(true)}>
-            <UserPlus className="w-4 h-4 mr-2" />Ajouter un ami
-          </Button>
-          <Button variant="ghost" className="!justify-start" onClick={() => setMatchOpen(true)}>
-            <Swords className="w-4 h-4 mr-2" />Ajouter un match
-          </Button>
+          <button
+            onClick={() => setAddOpen(true)}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-[14px] bg-primary/10 hover:bg-primary/15 transition-colors cursor-pointer text-sm font-semibold text-primary"
+          >
+            <UserPlus className="w-4 h-4" />Ajouter un ami
+          </button>
+          <button
+            onClick={() => setMatchOpen(true)}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-[14px] bg-lime/30 hover:bg-lime/40 transition-colors cursor-pointer text-sm font-semibold text-primary"
+          >
+            <Swords className="w-4 h-4" />Ajouter un match
+          </button>
         </div>
 
         {/* Pending invitations */}
@@ -238,7 +260,6 @@ export default function Social() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text truncate">{f.profile.display_name}</p>
-                    <p className="text-xs text-text-tertiary truncate">{f.profile.email}</p>
                   </div>
                   <Button
                     size="sm" variant="ghost"

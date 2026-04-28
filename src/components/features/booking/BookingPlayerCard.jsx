@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
-import { UserPlus, Wallet, CreditCard, Banknote } from 'lucide-react'
+import { UserPlus, Wallet, AlertCircle } from 'lucide-react'
 
 const PAY_BADGE = {
   paid: { color: 'success', label: 'Payé' },
@@ -16,8 +16,8 @@ const INVITE_BADGE = {
 }
 
 function BookingPlayerCard({
-  player, idx, userId, isOwner, isPaid, share, submitting,
-  onPayBalance, onPayExternal, onClearSlot, onOpenAdd,
+  player, idx, userId, isOwner, isPaid, share, submitting, userBalance = 0,
+  onPayBalance, onClearSlot, onOpenAdd,
 }) {
   const isPlayer1 = idx === 0
   const isEmpty = player.player_name === 'Place disponible'
@@ -82,20 +82,30 @@ function BookingPlayerCard({
         <p className="text-sm font-bold text-primary">{parseFloat(player.amount).toFixed(2)}€</p>
       </div>
 
-      {/* Payment actions — only for yourself */}
-      {isPending && !isPaid && isMe && !isInvitePending && (
-        <div className="flex gap-2 mt-2.5 pt-2.5 border-t border-separator/50">
-          <Button size="sm" className="flex-1" onClick={() => onPayBalance(player)} loading={submitting}>
-            <Wallet className="w-3.5 h-3.5 mr-1" />Solde
-          </Button>
-          <Button size="sm" variant="ghost" className="flex-1" onClick={() => onPayExternal(player, 'cb')} loading={submitting}>
-            <CreditCard className="w-3.5 h-3.5 mr-1" />CB
-          </Button>
-          <Button size="sm" variant="ghost" className="flex-1" onClick={() => onPayExternal(player, 'cash')} loading={submitting}>
-            <Banknote className="w-3.5 h-3.5 mr-1" />Espèces
-          </Button>
-        </div>
-      )}
+      {/* Payment actions — only for yourself · wallet uniquement */}
+      {isPending && !isPaid && isMe && !isInvitePending && (() => {
+        const due = parseFloat(player.amount)
+        const insufficient = userBalance < due
+        return (
+          <div className="mt-2.5 pt-2.5 border-t border-separator/50">
+            <Button
+              size="sm"
+              className="w-full"
+              onClick={() => onPayBalance(player)}
+              loading={submitting}
+              disabled={insufficient}
+            >
+              <Wallet className="w-3.5 h-3.5 mr-1" />Payer avec mon solde
+            </Button>
+            {insufficient && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-warning">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span>Solde insuffisant ({userBalance.toFixed(2)}€). Tu peux payer plus tard.</span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Clear slot — owner can remove invited players, or self-remove */}
       {!isPlayer1 && isPending && !isPaid && (isOwner || isMe) && (

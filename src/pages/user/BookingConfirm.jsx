@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
   getBookingWithPlayers, assignPlayerToSlot, searchMembers,
-  cancelBooking, payPlayerShare, markPlayerExternal, clearSlot, partPrice,
+  cancelBooking, payPlayerShare, clearSlot, partPrice,
   updatePlayerAmount
 } from '@/services/bookingService'
 import { formatDateFull, formatTime } from '@/utils/formatDate'
@@ -119,27 +119,18 @@ export default function BookingConfirm() {
 
   const handlePayBalance = (player) => {
     askConfirm({
-      title: 'Débiter le solde',
-      message: `Débiter ${parseFloat(player.amount).toFixed(2)}€ du solde de ${player.player_name} ?`,
-      confirmLabel: 'Débiter', variant: 'danger',
+      title: 'Payer ma part',
+      message: `Confirmer le paiement de ${parseFloat(player.amount).toFixed(2)}€ depuis ton solde ?`,
+      confirmLabel: 'Payer', variant: 'primary',
       onConfirm: async () => {
         setSubmitting(true)
         try {
           await payPlayerShare({ playerId: player.id, bookingId: id, userId: player.user_id, amount: parseFloat(player.amount), performedBy: user.id })
-          toast.success(`${player.player_name} payé`); await fetchData()
+          toast.success('Paiement enregistré'); await fetchData()
         } catch (err) { toast.error(err.message) }
         finally { setSubmitting(false) }
       },
     })
-  }
-
-  const handlePayExternal = async (player, method) => {
-    setSubmitting(true)
-    try {
-      await markPlayerExternal({ playerId: player.id, bookingId: id, paymentMethod: method, amount: parseFloat(player.amount), playerName: player.player_name, performedBy: user.id })
-      toast.success(`${player.player_name} — paiement ${method} enregistré`); await fetchData()
-    } catch (err) { toast.error(err.message) }
-    finally { setSubmitting(false) }
   }
 
   const handleClearSlot = (player) => {
@@ -257,8 +248,8 @@ export default function BookingConfirm() {
                 isPaid={isPaid}
                 share={share}
                 submitting={submitting}
+                userBalance={parseFloat(profile?.balance || 0) + parseFloat(profile?.balance_bonus || 0)}
                 onPayBalance={handlePayBalance}
-                onPayExternal={handlePayExternal}
                 onClearSlot={handleClearSlot}
                 onOpenAdd={(slotId) => { setSelectedSlotId(slotId); setAddOpen(true); setSearchQuery('') }}
               />

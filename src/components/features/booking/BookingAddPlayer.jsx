@@ -38,9 +38,7 @@ export default function BookingAddPlayer({
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-text truncate">{member.display_name}</p>
-                <p className="text-xs text-text-tertiary">
-                  Solde: {(parseFloat(member.balance || 0) + parseFloat(member.balance_bonus || 0)).toFixed(2)}€
-                </p>
+                <p className="text-xs text-text-tertiary">Membre du club</p>
               </div>
               <UserPlus className="w-4 h-4 text-primary shrink-0" />
             </button>

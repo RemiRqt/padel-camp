@@ -26,7 +26,7 @@ export async function fetchPendingInvitations(userId) {
 export async function fetchMatches(userId) {
   const { data, error } = await supabase
     .from('matches')
-    .select('id, player1_id, player2_id, opponent1_id, opponent2_id, score_team1, score_team2, winner, date_played, p1:profiles!matches_player1_id_fkey(display_name), p2:profiles!matches_player2_id_fkey(display_name), o1:profiles!matches_opponent1_id_fkey(display_name), o2:profiles!matches_opponent2_id_fkey(display_name)')
+    .select('id, player1_id, player2_id, opponent1_id, opponent2_id, partner_name, opponent1_name, opponent2_name, score_team1, score_team2, winner, date_played, p1:profiles!matches_player1_id_fkey(display_name), p2:profiles!matches_player2_id_fkey(display_name), o1:profiles!matches_opponent1_id_fkey(display_name), o2:profiles!matches_opponent2_id_fkey(display_name)')
     .or(`player1_id.eq.${userId},player2_id.eq.${userId},opponent1_id.eq.${userId},opponent2_id.eq.${userId}`)
     .order('date_played', { ascending: false })
     .limit(20)

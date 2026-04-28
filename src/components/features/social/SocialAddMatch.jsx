@@ -1,24 +1,31 @@
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
-import { Search, Swords } from 'lucide-react'
+import { Search, Swords, X } from 'lucide-react'
 
-function MemberPicker({ placeholder, search, setSearch, results, onSelect }) {
+function FreeTextPicker({ placeholder, value, onChange, results, onSelectMember, accent = 'primary' }) {
+  const showSuggestions = value.length >= 2 && results.length > 0
+  const ringClass = accent === 'danger' ? 'focus:ring-danger/30' : 'focus:ring-primary/30'
   return (
-    <div>
+    <div className="relative">
       <div className="relative">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" />
         <input
-          type="text" placeholder={placeholder}
-          value={search} onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full pl-8 pr-3 py-2 rounded-lg bg-white text-sm focus:outline-none focus:ring-2 ${ringClass}`}
         />
       </div>
-      {results.length > 0 && (
-        <div className="mt-1 space-y-0.5 max-h-28 overflow-y-auto">
+      {showSuggestions && (
+        <div className="absolute z-10 mt-1 left-0 right-0 bg-white border border-separator rounded-lg shadow-lg max-h-32 overflow-y-auto">
           {results.map((m) => (
-            <button key={m.id} onClick={() => onSelect(m)}
-              className="w-full text-left text-sm p-1.5 rounded-lg hover:bg-white cursor-pointer truncate">
-              {m.display_name}
+            <button
+              key={m.id}
+              onClick={() => onSelectMember(m)}
+              className="w-full text-left text-sm px-3 py-1.5 hover:bg-bg cursor-pointer truncate"
+            >
+              {m.display_name} <span className="text-[10px] text-text-tertiary">· membre</span>
             </button>
           ))}
         </div>
@@ -41,6 +48,16 @@ export default function SocialAddMatch({
       return { ...prev, sets }
     })
   }
+  const removeSet = (idx) => {
+    setMatchForm((prev) => {
+      if (prev.sets.length <= 1) return prev
+      return { ...prev, sets: prev.sets.filter((_, i) => i !== idx) }
+    })
+  }
+
+  const partnerLabel = matchForm.partner?.display_name || partnerSearch
+  const opp1Label = matchForm.opponent1?.display_name || opp1Search
+  const opp2Label = matchForm.opponent2?.display_name || opp2Search
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Enregistrer un match">
@@ -66,12 +83,12 @@ export default function SocialAddMatch({
                 <button onClick={() => setMatchForm((p) => ({ ...p, partner: null }))} className="text-xs text-danger cursor-pointer">Retirer</button>
               </div>
             ) : (
-              <MemberPicker
-                placeholder="Partenaire (optionnel)"
-                search={partnerSearch}
-                setSearch={setPartnerSearch}
+              <FreeTextPicker
+                placeholder="Partenaire (optionnel) — nom libre ou membre"
+                value={partnerSearch}
+                onChange={setPartnerSearch}
                 results={partnerResults}
-                onSelect={(m) => { setMatchForm((p) => ({ ...p, partner: m })); setPartnerSearch('') }}
+                onSelectMember={(m) => { setMatchForm((p) => ({ ...p, partner: m })); setPartnerSearch('') }}
               />
             )}
           </div>
@@ -94,12 +111,13 @@ export default function SocialAddMatch({
                 <button onClick={() => setMatchForm((p) => ({ ...p, opponent1: null }))} className="text-xs text-danger cursor-pointer">Retirer</button>
               </div>
             ) : (
-              <MemberPicker
-                placeholder="Adversaire 1"
-                search={opp1Search}
-                setSearch={setOpp1Search}
+              <FreeTextPicker
+                placeholder="Adversaire 1 — nom libre ou membre"
+                value={opp1Search}
+                onChange={setOpp1Search}
                 results={opp1Results}
-                onSelect={(m) => { setMatchForm((p) => ({ ...p, opponent1: m })); setOpp1Search('') }}
+                onSelectMember={(m) => { setMatchForm((p) => ({ ...p, opponent1: m })); setOpp1Search('') }}
+                accent="danger"
               />
             )}
             {matchForm.opponent2 ? (
@@ -113,12 +131,13 @@ export default function SocialAddMatch({
                 <button onClick={() => setMatchForm((p) => ({ ...p, opponent2: null }))} className="text-xs text-danger cursor-pointer">Retirer</button>
               </div>
             ) : (
-              <MemberPicker
-                placeholder="Adversaire 2"
-                search={opp2Search}
-                setSearch={setOpp2Search}
+              <FreeTextPicker
+                placeholder="Adversaire 2 — nom libre ou membre"
+                value={opp2Search}
+                onChange={setOpp2Search}
                 results={opp2Results}
-                onSelect={(m) => { setMatchForm((p) => ({ ...p, opponent2: m })); setOpp2Search('') }}
+                onSelectMember={(m) => { setMatchForm((p) => ({ ...p, opponent2: m })); setOpp2Search('') }}
+                accent="danger"
               />
             )}
           </div>
@@ -132,18 +151,27 @@ export default function SocialAddMatch({
               <div key={i} className="flex items-center gap-2">
                 <span className="text-xs text-text-tertiary w-10">Set {i + 1}</span>
                 <input
-                  type="number" min="0" max="7" value={s.s1}
+                  type="number" min="0" value={s.s1}
                   onChange={(e) => updateSet(i, 's1', e.target.value)}
                   className="w-14 px-2 py-2 rounded-lg bg-green-50 text-center text-sm font-bold text-green-700 focus:outline-none focus:ring-2 focus:ring-green-300"
                   placeholder="0"
                 />
                 <span className="text-xs text-text-tertiary">—</span>
                 <input
-                  type="number" min="0" max="7" value={s.s2}
+                  type="number" min="0" value={s.s2}
                   onChange={(e) => updateSet(i, 's2', e.target.value)}
                   className="w-14 px-2 py-2 rounded-lg bg-red-50 text-center text-sm font-bold text-red-500 focus:outline-none focus:ring-2 focus:ring-red-300"
                   placeholder="0"
                 />
+                {matchForm.sets.length > 1 && (
+                  <button
+                    onClick={() => removeSet(i)}
+                    className="ml-1 w-7 h-7 rounded-md hover:bg-danger/10 flex items-center justify-center text-text-tertiary hover:text-danger transition-colors cursor-pointer"
+                    aria-label={`Supprimer set ${i + 1}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             ))}
             <button

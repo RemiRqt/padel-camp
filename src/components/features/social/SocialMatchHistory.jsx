@@ -20,7 +20,9 @@ export default function SocialMatchHistory({ matches, userId }) {
                   {/* Team 1 */}
                   <div className="flex-1 min-w-0 text-xs">
                     <p className="font-medium text-text truncate">{m.p1?.display_name}</p>
-                    {m.p2?.display_name && <p className="text-text-secondary truncate">{m.p2.display_name}</p>}
+                    {(m.p2?.display_name || m.partner_name) && (
+                      <p className="text-text-secondary truncate">{m.p2?.display_name || m.partner_name}</p>
+                    )}
                   </div>
                   {/* Scores */}
                   <div className="flex items-center gap-1.5">
@@ -32,8 +34,10 @@ export default function SocialMatchHistory({ matches, userId }) {
                   </div>
                   {/* Team 2 */}
                   <div className="flex-1 min-w-0 text-xs text-right">
-                    <p className="font-medium text-text truncate">{m.o1?.display_name}</p>
-                    {m.o2?.display_name && <p className="text-text-secondary truncate">{m.o2.display_name}</p>}
+                    <p className="font-medium text-text truncate">{m.o1?.display_name || m.opponent1_name}</p>
+                    {(m.o2?.display_name || m.opponent2_name) && (
+                      <p className="text-text-secondary truncate">{m.o2?.display_name || m.opponent2_name}</p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center justify-between mt-1.5">

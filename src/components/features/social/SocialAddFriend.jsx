@@ -26,7 +26,7 @@ export default function SocialAddFriend({ isOpen, onClose, searchQ, setSearchQ, 
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-text truncate">{m.display_name}</p>
-                  <p className="text-xs text-text-tertiary truncate">{m.email}</p>
+                  <p className="text-xs text-text-tertiary">Membre du club</p>
                 </div>
                 <UserPlus className="w-4 h-4 text-primary shrink-0" />
               </button>

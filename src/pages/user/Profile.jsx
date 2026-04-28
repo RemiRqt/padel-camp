@@ -10,8 +10,20 @@ import Badge from '@/components/ui/Badge'
 import toast from 'react-hot-toast'
 import {
   User, Mail, Phone, Award, Wallet, Gift, LogOut,
-  ChevronRight, Shield
+  ChevronRight, Shield, Pencil, X
 } from 'lucide-react'
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-9 h-9 rounded-[10px] bg-bg flex items-center justify-center shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-xs text-text-secondary">{label}</p>
+        <p className="text-sm font-medium truncate">{value}</p>
+      </div>
+    </div>
+  )
+}
 
 export default function Profile() {
   const { profile, signOut, fetchProfile, user, isAdmin } = useAuth()
@@ -21,6 +33,7 @@ export default function Profile() {
     license_number: '',
   })
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [txCount, setTxCount] = useState(0)
 
   useEffect(() => {
@@ -58,11 +71,21 @@ export default function Profile() {
       })
       await fetchProfile(user.id)
       toast.success('Profil mis à jour')
+      setEditing(false)
     } catch (err) {
       toast.error(err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleCancelEdit = () => {
+    setForm({
+      display_name: profile?.display_name || '',
+      phone: profile?.phone || '',
+      license_number: profile?.license_number || '',
+    })
+    setEditing(false)
   }
 
   const balance = parseFloat(profile?.balance || 0)
@@ -80,13 +103,14 @@ export default function Profile() {
           </div>
           <h2 className="text-xl font-bold text-text">{profile?.display_name}</h2>
           <p className="text-sm text-text-secondary mt-0.5">{profile?.email}</p>
-          <div className="flex items-center justify-center gap-2 mt-2">
-            {isAdmin && <Badge color="primary"><Shield className="w-3 h-3 mr-1 inline" />Admin</Badge>}
-            <Badge color="gray">Membre</Badge>
-            {profile?.license_number && (
-              <Badge color="lime"><Award className="w-3 h-3 mr-1 inline" />FFT</Badge>
-            )}
-          </div>
+          {(isAdmin || profile?.license_number) && (
+            <div className="flex items-center justify-center gap-2 mt-2">
+              {isAdmin && <Badge color="primary"><Shield className="w-3 h-3 mr-1 inline" />Admin</Badge>}
+              {profile?.license_number && (
+                <Badge color="lime"><Award className="w-3 h-3 mr-1 inline" />FFT</Badge>
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Solde résumé */}
@@ -124,64 +148,68 @@ export default function Profile() {
           </div>
         </Card>
 
-        {/* Formulaire édition */}
+        {/* Mes informations — vue + édition */}
         <Card>
-          <h3 className="font-semibold text-text mb-4">Mes informations</h3>
-          <form onSubmit={handleSave} className="space-y-4">
-            <Input
-              label="Nom complet"
-              value={form.display_name}
-              onChange={update('display_name')}
-              required
-            />
-            <Input
-              label="Téléphone"
-              type="tel"
-              value={form.phone}
-              onChange={update('phone')}
-              placeholder="06 12 34 56 78"
-            />
-            <div>
-              <Input
-                label="N° Licence FFT"
-                value={form.license_number}
-                onChange={update('license_number')}
-                placeholder="Ex: 1234567"
-              />
-              <p className="text-[11px] text-text-tertiary mt-1.5">
-                Obligatoire pour participer aux tournois homologués
-              </p>
-            </div>
-            <Button type="submit" loading={saving} className="w-full">
-              Enregistrer
-            </Button>
-          </form>
-        </Card>
-
-        {/* Info non modifiable */}
-        <Card>
-          <h3 className="font-semibold text-text mb-3">Compte</h3>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-[10px] bg-bg flex items-center justify-center shrink-0">
-                <Mail className="w-4 h-4 text-text-secondary" />
-              </div>
-              <div>
-                <p className="text-xs text-text-secondary">Email</p>
-                <p className="text-sm font-medium">{profile?.email}</p>
-              </div>
-            </div>
-            <div className="border-t border-separator" />
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-[10px] bg-bg flex items-center justify-center shrink-0">
-                <User className="w-4 h-4 text-text-secondary" />
-              </div>
-              <div>
-                <p className="text-xs text-text-secondary">Rôle</p>
-                <p className="text-sm font-medium capitalize">{profile?.role || 'user'}</p>
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-text">Mes informations</h3>
+            {!editing ? (
+              <button
+                onClick={() => setEditing(true)}
+                className="flex items-center gap-1 text-xs font-medium text-primary hover:underline cursor-pointer"
+              >
+                <Pencil className="w-3.5 h-3.5" />Modifier
+              </button>
+            ) : (
+              <button
+                onClick={handleCancelEdit}
+                className="flex items-center gap-1 text-xs font-medium text-text-secondary hover:underline cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />Annuler
+              </button>
+            )}
           </div>
+
+          {!editing ? (
+            <div className="space-y-3">
+              <InfoRow icon={<User className="w-4 h-4 text-text-secondary" />} label="Nom complet" value={profile?.display_name || '—'} />
+              <div className="border-t border-separator" />
+              <InfoRow icon={<Phone className="w-4 h-4 text-text-secondary" />} label="Téléphone" value={profile?.phone || '—'} />
+              <div className="border-t border-separator" />
+              <InfoRow icon={<Mail className="w-4 h-4 text-text-secondary" />} label="Email" value={profile?.email || '—'} />
+              <div className="border-t border-separator" />
+              <InfoRow icon={<Award className="w-4 h-4 text-text-secondary" />} label="N° Licence FFT" value={profile?.license_number || 'Non renseignée'} />
+            </div>
+          ) : (
+            <form onSubmit={handleSave} className="space-y-4">
+              <Input
+                label="Nom complet"
+                value={form.display_name}
+                onChange={update('display_name')}
+                required
+              />
+              <Input
+                label="Téléphone"
+                type="tel"
+                value={form.phone}
+                onChange={update('phone')}
+                placeholder="06 12 34 56 78"
+              />
+              <div>
+                <Input
+                  label="N° Licence FFT"
+                  value={form.license_number}
+                  onChange={update('license_number')}
+                  placeholder="Ex: 1234567"
+                />
+                <p className="text-[11px] text-text-tertiary mt-1.5">
+                  Obligatoire pour participer aux tournois homologués
+                </p>
+              </div>
+              <Button type="submit" loading={saving} className="w-full">
+                Enregistrer
+              </Button>
+            </form>
+          )}
         </Card>
 
         {/* Déconnexion */}
