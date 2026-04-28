@@ -220,40 +220,59 @@ export default function AdminProducts() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredProducts.map((p) => (
-              <Card key={p.id} className="!p-4 flex flex-col gap-3">
-                {/* Header : nom + statut */}
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text leading-tight mb-1.5">{p.name}</p>
-                    <Badge color="primary">{p.category?.name}</Badge>
-                  </div>
-                  <button onClick={() => toggleProd(p)} className="cursor-pointer shrink-0" title={p.is_active ? 'Désactiver' : 'Activer'}>
-                    <Badge color={p.is_active ? 'success' : 'gray'}>
+              <Card
+                key={p.id}
+                className={`!p-0 flex flex-col overflow-hidden transition-all hover:shadow-[0_4px_12px_rgba(11,39,120,0.08)] ${
+                  !p.is_active ? 'opacity-60' : ''
+                }`}
+              >
+                {/* Header bar : catégorie + toggle actif */}
+                <div className="px-4 pt-3 pb-2 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider truncate">
+                    {p.category?.name || 'Sans catégorie'}
+                  </span>
+                  <button
+                    onClick={() => toggleProd(p)}
+                    className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                    title={p.is_active ? 'Cliquer pour désactiver' : 'Cliquer pour activer'}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${p.is_active ? 'bg-success' : 'bg-text-tertiary'}`} />
+                    <span className={`text-[10px] font-semibold ${p.is_active ? 'text-success' : 'text-text-tertiary'}`}>
                       {p.is_active ? 'Actif' : 'Inactif'}
-                    </Badge>
+                    </span>
                   </button>
                 </div>
 
-                {/* Prix + TVA */}
-                <div className="flex items-baseline justify-between border-t border-separator pt-2">
-                  <p className="text-xl font-bold text-primary">{parseFloat(p.price).toFixed(2)}€</p>
-                  <span className="text-xs text-text-tertiary">
-                    TVA {formatTvaRate(getProductTvaRate(p))}{p.tva_rate == null ? ' (cat.)' : ''}
-                  </span>
+                {/* Body : nom + prix */}
+                <div className="px-4 pb-3 flex-1 flex flex-col gap-1">
+                  <p className="text-base font-semibold text-text leading-tight line-clamp-2">{p.name}</p>
+                  {p.description && (
+                    <p className="text-xs text-text-tertiary line-clamp-1">{p.description}</p>
+                  )}
+                  <div className="mt-auto pt-2 flex items-baseline gap-2">
+                    <p className="text-2xl font-bold text-primary leading-none">
+                      {parseFloat(p.price).toFixed(2)}<span className="text-base ml-0.5">€</span>
+                    </p>
+                    <span className="text-[10px] text-text-tertiary">
+                      TVA {formatTvaRate(getProductTvaRate(p))}{p.tva_rate == null ? ' (cat.)' : ''}
+                    </span>
+                  </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-2">
+                {/* Actions footer */}
+                <div className="border-t border-separator flex">
                   <button
                     onClick={() => openEditProd(p)}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[10px] bg-bg hover:bg-primary/5 text-xs font-medium text-text-secondary cursor-pointer transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 hover:bg-primary/5 text-xs font-semibold text-primary cursor-pointer transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" /> Modifier
                   </button>
+                  <div className="w-px bg-separator" />
                   <button
                     onClick={() => deleteProd(p)}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-[10px] bg-bg hover:bg-danger/10 hover:text-danger text-xs font-medium text-text-tertiary cursor-pointer transition-colors"
+                    className="flex items-center justify-center px-4 py-2.5 hover:bg-danger/5 text-text-tertiary hover:text-danger cursor-pointer transition-colors"
                     title="Supprimer"
+                    aria-label="Supprimer"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>

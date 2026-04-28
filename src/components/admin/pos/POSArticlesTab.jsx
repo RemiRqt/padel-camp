@@ -52,23 +52,27 @@ export default function POSArticlesTab({
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         <button
           onClick={() => setActiveCat(null)}
-          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer ${
+          className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer transition-colors ${
             showAll ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-bg'
           }`}
         >
-          Tout voir
+          Tout voir ({products.length})
         </button>
-        {categories.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setActiveCat(cat.id)}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer ${
-              activeCat === cat.id ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-bg'
-            }`}
-          >
-            {cat.name}
-          </button>
-        ))}
+        {categories.map((cat) => {
+          const count = products.filter((p) => p.category_id === cat.id).length
+          if (count === 0) return null
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setActiveCat(cat.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer transition-colors ${
+                activeCat === cat.id ? 'bg-primary text-white' : 'bg-white text-text-secondary hover:bg-bg'
+              }`}
+            >
+              {cat.name} ({count})
+            </button>
+          )
+        })}
       </div>
 
       {/* Panier (au-dessus pour visibilité immédiate du total) */}
