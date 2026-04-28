@@ -135,77 +135,64 @@ export default function TournamentDetailView({
             <p className="text-sm text-text-tertiary">Aucune inscription</p>
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="divide-y divide-separator border border-separator rounded-[12px] bg-white overflow-hidden">
             {activeRegs.map((reg, i) => (
-              <Card key={reg.id} className="!p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <span className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">
-                      {reg.status === 'waitlist' ? `W${reg.position}` : i + 1}
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-text">{reg.player1_name} & {reg.player2_name}</p>
-                      <div className="flex flex-wrap items-center gap-2 mt-1">
-                        <span className="text-[11px] text-text-tertiary flex items-center gap-0.5">
-                          <Award className="w-3 h-3" />{reg.player1_license}
-                        </span>
-                        <span className="text-[11px] text-text-tertiary">/</span>
-                        <span className="text-[11px] text-text-tertiary flex items-center gap-0.5">
-                          <Award className="w-3 h-3" />{reg.player2_license}
-                        </span>
-                        {reg.player2_is_external && <Badge color="gray">Externe</Badge>}
-                      </div>
-                      <p className="text-[10px] text-text-tertiary mt-1">
-                        Inscrit le {new Date(reg.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </p>
+              <div key={reg.id} className="flex items-center gap-3 px-3 py-2.5 hover:bg-bg/50 transition-colors">
+                <span className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                  {reg.status === 'waitlist' ? `W${reg.position}` : i + 1}
+                </span>
 
-                      {/* Confirmation status */}
-                      {reg.status === 'approved' && (
-                        <div className="flex gap-3 mt-1.5 text-[11px]">
-                          <span className={reg.player1_confirmed ? 'text-success' : 'text-text-tertiary'}>
-                            {reg.player1_confirmed ? '\u2713' : '\u25CB'} {reg.player1_name.split(' ')[0]}
-                          </span>
-                          <span className={reg.player2_confirmed ? 'text-success' : 'text-text-tertiary'}>
-                            {reg.player2_confirmed ? '\u2713' : '\u25CB'} {reg.player2_name.split(' ')[0]}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-text truncate">{reg.player1_name} & {reg.player2_name}</p>
+                  <div className="flex items-center gap-2 text-[11px] text-text-tertiary truncate">
+                    <span className="flex items-center gap-0.5"><Award className="w-3 h-3" />{reg.player1_license}</span>
+                    <span>/</span>
+                    <span className="flex items-center gap-0.5"><Award className="w-3 h-3" />{reg.player2_license}</span>
+                    {reg.player2_is_external && <span className="text-text-secondary">\u00B7 Externe</span>}
+                    {reg.status === 'approved' && (
+                      <>
+                        <span>\u00B7</span>
+                        <span className={reg.player1_confirmed ? 'text-success' : 'text-text-tertiary'}>
+                          {reg.player1_confirmed ? '\u2713' : '\u25CB'} {reg.player1_name.split(' ')[0]}
+                        </span>
+                        <span className={reg.player2_confirmed ? 'text-success' : 'text-text-tertiary'}>
+                          {reg.player2_confirmed ? '\u2713' : '\u25CB'} {reg.player2_name.split(' ')[0]}
+                        </span>
+                      </>
+                    )}
                   </div>
-                  <Badge color={REG_COLORS[reg.status]}>{REG_LABELS[reg.status]}</Badge>
                 </div>
 
-                {/* Actions */}
-                {reg.status === 'pending_admin' && (
-                  <div className="flex gap-2 mt-3">
-                    <Button size="sm" className="flex-1" loading={actionLoading === reg.id} onClick={() => onValidate(reg.id)}>
-                      <Check className="w-3.5 h-3.5 mr-1" />Valider
-                    </Button>
-                    <Button size="sm" variant="danger" className="flex-1" loading={actionLoading === reg.id} onClick={() => onReject(reg.id)}>
-                      <X className="w-3.5 h-3.5 mr-1" />Refuser
-                    </Button>
-                  </div>
-                )}
+                <Badge color={REG_COLORS[reg.status]}>{REG_LABELS[reg.status]}</Badge>
 
-                {reg.status === 'waitlist' && (
-                  <div className="flex gap-2 mt-3">
-                    <Button size="sm" variant="ghost" className="flex-1" loading={actionLoading === reg.id} onClick={() => onValidate(reg.id)}>
-                      <ArrowUp className="w-3.5 h-3.5 mr-1" />Promouvoir
+                <div className="flex items-center gap-1 shrink-0">
+                  {reg.status === 'pending_admin' && (
+                    <>
+                      <Button size="sm" loading={actionLoading === reg.id} onClick={() => onValidate(reg.id)}>
+                        <Check className="w-3.5 h-3.5 mr-1" />Valider
+                      </Button>
+                      <Button size="sm" variant="ghost" className="!text-danger" loading={actionLoading === reg.id} onClick={() => onReject(reg.id)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  )}
+                  {reg.status === 'waitlist' && (
+                    <>
+                      <Button size="sm" variant="ghost" loading={actionLoading === reg.id} onClick={() => onValidate(reg.id)}>
+                        <ArrowUp className="w-3.5 h-3.5 mr-1" />Promouvoir
+                      </Button>
+                      <Button size="sm" variant="ghost" className="!text-danger" loading={actionLoading === reg.id} onClick={() => onCancelAndPromote(reg.id)}>
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </>
+                  )}
+                  {['approved', 'confirmed'].includes(reg.status) && (
+                    <Button size="sm" variant="ghost" className="!text-danger" loading={actionLoading === reg.id} onClick={() => onCancelAndPromote(reg.id)}>
+                      <X className="w-3.5 h-3.5 mr-1" />Annuler
                     </Button>
-                    <Button size="sm" variant="ghost" className="flex-1 !text-danger" loading={actionLoading === reg.id} onClick={() => onCancelAndPromote(reg.id)}>
-                      Annuler
-                    </Button>
-                  </div>
-                )}
-
-                {['approved', 'confirmed'].includes(reg.status) && (
-                  <div className="mt-3">
-                    <Button size="sm" variant="ghost" className="w-full !text-danger" loading={actionLoading === reg.id} onClick={() => onCancelAndPromote(reg.id)}>
-                      Annuler + promouvoir waitlist
-                    </Button>
-                  </div>
-                )}
-              </Card>
+                  )}
+                </div>
+              </div>
             ))}
           </div>
         )}

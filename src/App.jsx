@@ -42,6 +42,7 @@ const AdminFormulas = lazy(() => import('@/pages/admin/AdminFormulas'))
 const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'))
 const AdminTournaments = lazy(() => import('@/pages/admin/AdminTournaments'))
 const AdminFinancialExport = lazy(() => import('@/pages/admin/AdminFinancialExport'))
+const AdminNotifications = lazy(() => import('@/pages/admin/AdminNotifications'))
 const NotFound = lazy(() => import('@/pages/NotFound'))
 
 const ReactQueryDevtools = import.meta.env.DEV
@@ -98,6 +99,7 @@ export default function App() {
           {/* Routes admin */}
           <Route element={<AdminRoute><AppLayout /></AdminRoute>}>
             <Route path="/admin" element={<AdminDash />} />
+            <Route path="/admin/notifications" element={<AdminNotifications />} />
             <Route path="/admin/members" element={<AdminMembers />} />
             <Route path="/admin/calendar" element={<AdminCalendar />} />
             <Route path="/admin/products" element={<AdminProducts />} />

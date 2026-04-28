@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext'
 import {
   Menu, X, Home, CalendarDays, Trophy, User, Ticket, Calendar,
   LayoutDashboard, Users, Settings, ShoppingCart, Package,
-  CreditCard, LogOut, Shield, ChevronRight, Heart, FileBarChart
+  CreditCard, LogOut, Shield, ChevronRight, Heart, FileBarChart, Bell
 } from 'lucide-react'
 import NotificationBell from '@/components/notifications/NotificationBell'
 
@@ -20,6 +20,7 @@ const userLinks = [
 
 const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/admin/notifications', icon: Bell, label: 'Notifications' },
   { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente' },
   { to: '/admin/members', icon: Users, label: 'Membres' },
   { to: '/admin/calendar', icon: Calendar, label: 'Calendrier' },

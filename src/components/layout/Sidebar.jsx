@@ -1,10 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
+import { useNotifications } from '@/context/NotificationContext'
 import {
-  Home, CalendarDays, Trophy, User, Menu, Heart,
+  Home, CalendarDays, Trophy, User, Menu, Heart, Bell,
   LayoutDashboard, Users, Settings, ShoppingCart, Package, CreditCard, Ticket, Calendar, FileBarChart, LogOut
 } from 'lucide-react'
-import NotificationBell from '@/components/notifications/NotificationBell'
 
 const userLinks = [
   { to: '/dashboard', icon: Home, label: 'Accueil' },
@@ -18,6 +18,7 @@ const userLinks = [
 
 const adminLinks = [
   { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/admin/notifications', icon: Bell, label: 'Notifications', badge: 'unread' },
   { to: '/admin/pos', icon: ShoppingCart, label: 'Point de vente' },
   { to: '/admin/members', icon: Users, label: 'Membres' },
   { to: '/admin/calendar', icon: Calendar, label: 'Calendrier' },
@@ -29,7 +30,7 @@ const adminLinks = [
 ]
 
 
-function SidebarLink({ to, icon: Icon, label }) {
+function SidebarLink({ to, icon: Icon, label, badgeCount }) {
   return (
     <NavLink
       to={to}
@@ -43,13 +44,19 @@ function SidebarLink({ to, icon: Icon, label }) {
       }
     >
       <Icon className="w-5 h-5" strokeWidth={2} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {badgeCount > 0 && (
+        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center">
+          {badgeCount > 9 ? '9+' : badgeCount}
+        </span>
+      )}
     </NavLink>
   )
 }
 
 export default function Sidebar() {
   const { isAdmin, profile, signOut } = useAuth()
+  const { unreadCount } = useNotifications()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
@@ -63,11 +70,10 @@ export default function Sidebar() {
         <div className="w-12 h-12 flex items-center justify-center shrink-0">
           <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full object-contain" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div>
           <h1 className="text-sm font-bold text-text leading-tight">Padel Camp</h1>
           <p className="text-xs text-text-secondary">Achères</p>
         </div>
-        <NotificationBell align="left" />
       </div>
 
       <nav className="flex flex-col gap-1 flex-1 overflow-y-auto">
@@ -76,7 +82,11 @@ export default function Sidebar() {
           {isAdmin ? 'Administration' : 'Menu'}
         </p>
         {(isAdmin ? adminLinks : userLinks).map((link) => (
-          <SidebarLink key={link.to} {...link} />
+          <SidebarLink
+            key={link.to}
+            {...link}
+            badgeCount={link.badge === 'unread' ? unreadCount : undefined}
+          />
         ))}
       </nav>
 
