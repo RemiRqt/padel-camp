@@ -83,15 +83,21 @@ export default function Landing() {
             <span>Ouvert 7j/7</span>
           </div>
           <div className="flex gap-3 justify-center flex-wrap">
-            <Link to={user ? '/booking' : '/login'}>
-              <Button variant="lime" size="lg">Réserver</Button>
-            </Link>
-            {!user && (
-              <Link to="/register">
-                <Button variant="outline" size="lg" className="!border-white/20 !text-white hover:!bg-white/10">
-                  Créer un compte
-                </Button>
+            {user ? (
+              <Link to="/booking">
+                <Button variant="lime" size="lg">Réserver</Button>
               </Link>
+            ) : (
+              <>
+                <Link to="/login">
+                  <Button variant="lime" size="lg">Connexion</Button>
+                </Link>
+                <Link to="/register">
+                  <Button variant="outline" size="lg" className="!border-white/20 !text-white hover:!bg-white/10">
+                    Créer un compte
+                  </Button>
+                </Link>
+              </>
             )}
           </div>
         </div>
