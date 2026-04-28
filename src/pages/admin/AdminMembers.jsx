@@ -38,8 +38,8 @@ export default function AdminMembers() {
   const [paymentMethod, setPaymentMethod] = useState('cb') // 'cb' | 'cash'
   const [crediting, setCrediting] = useState(false)
 
-  // Create member form
-  const [newMember, setNewMember] = useState({ email: '', password: '', display_name: '', phone: '' })
+  // Create member form (pas de password : le membre le définit via email)
+  const [newMember, setNewMember] = useState({ email: '', display_name: '', phone: '' })
   const [creating, setCreating] = useState(false)
 
   const fetchMembers = async () => {
@@ -135,16 +135,16 @@ export default function AdminMembers() {
   }
 
   const handleCreateMember = async () => {
-    if (!newMember.email || !newMember.password || !newMember.display_name) {
-      toast.error('Email, mot de passe et nom requis')
+    if (!newMember.email || !newMember.display_name) {
+      toast.error('Email et nom requis')
       return
     }
     setCreating(true)
     try {
-      await createMember(newMember.email, newMember.password, newMember.display_name, newMember.phone)
-      toast.success('Membre créé')
+      await createMember(newMember.email, newMember.display_name, newMember.phone)
+      toast.success('Membre créé — email envoyé pour définir le mot de passe')
       setCreateOpen(false)
-      setNewMember({ email: '', password: '', display_name: '', phone: '' })
+      setNewMember({ email: '', display_name: '', phone: '' })
       setTimeout(fetchMembers, 1000) // le trigger crée le profil
     } catch (err) {
       toast.error(err.message)
@@ -337,13 +337,9 @@ export default function AdminMembers() {
             value={newMember.phone}
             onChange={(e) => setNewMember({ ...newMember, phone: e.target.value })}
           />
-          <Input
-            label="Mot de passe"
-            type="password"
-            value={newMember.password}
-            onChange={(e) => setNewMember({ ...newMember, password: e.target.value })}
-            required
-          />
+          <p className="text-xs text-text-tertiary bg-bg rounded-[10px] p-3">
+            Un email sera envoyé au membre pour qu'il définisse son mot de passe lui-même.
+          </p>
           <Button className="w-full" loading={creating} onClick={handleCreateMember}>
             <UserPlus className="w-4 h-4 mr-1" />
             Créer le membre

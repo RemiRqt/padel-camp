@@ -73,11 +73,27 @@ export async function creditMember(memberId, adminId, amountPaid, amountCredited
   if (error) throw error
 }
 
-export async function createMember(email, password, displayName, phone) {
-  const { error } = await supabase.auth.signUp({
+// Crée un membre sans demander de mot de passe à l'admin :
+// signUp avec mot de passe aléatoire (jamais utilisé), puis envoi d'un
+// reset password — le membre cliquera le lien dans son email pour
+// définir lui-même son mot de passe.
+export async function createMember(email, displayName, phone) {
+  const tempPassword = Math.random().toString(36).slice(-12) + 'A1!'
+  const redirectTo = window.location.origin + '/auth/callback'
+
+  const { error: signErr } = await supabase.auth.signUp({
     email,
-    password,
-    options: { data: { display_name: displayName, phone } },
+    password: tempPassword,
+    options: {
+      emailRedirectTo: redirectTo,
+      data: { display_name: displayName, phone },
+    },
   })
-  if (error) throw error
+  if (signErr) throw signErr
+
+  // Email de définition du mot de passe (lien magique)
+  const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo,
+  })
+  if (resetErr) throw resetErr
 }
