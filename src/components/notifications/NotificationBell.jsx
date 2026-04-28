@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, Trophy, UserPlus, Clock, ShieldCheck } from 'lucide-react'
-import { useNotifications } from '@/hooks/useNotifications'
+import { useNotifications } from '@/context/NotificationContext'
 import { formatRelativeTime } from '@/utils/formatDate'
 
 const ICONS = {

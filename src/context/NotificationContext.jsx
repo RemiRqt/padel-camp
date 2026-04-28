@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import {
   fetchNotifications,
@@ -7,7 +7,9 @@ import {
   subscribeToNotifications,
 } from '@/services/notificationService'
 
-export function useNotifications() {
+const NotificationContext = createContext(null)
+
+export function NotificationProvider({ children }) {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(false)
@@ -56,5 +58,14 @@ export function useNotifications() {
 
   const unreadCount = notifications.filter((n) => !n.read_at).length
 
-  return { notifications, unreadCount, loading, refresh, markAsRead, markAllAsRead }
+  const value = { notifications, unreadCount, loading, refresh, markAsRead, markAllAsRead }
+  return <NotificationContext.Provider value={value}>{children}</NotificationContext.Provider>
+}
+
+export function useNotifications() {
+  const ctx = useContext(NotificationContext)
+  if (!ctx) {
+    return { notifications: [], unreadCount: 0, loading: false, refresh: () => {}, markAsRead: () => {}, markAllAsRead: () => {} }
+  }
+  return ctx
 }

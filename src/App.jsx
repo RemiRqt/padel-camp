@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/queryClient'
 import { AuthProvider } from '@/context/AuthContext'
+import { NotificationProvider } from '@/context/NotificationContext'
 import AppLayout from '@/components/layout/AppLayout'
 import ProtectedRoute from '@/components/layout/ProtectedRoute'
 import AdminRoute from '@/components/layout/AdminRoute'
@@ -57,6 +58,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
     <BrowserRouter>
       <AuthProvider>
+      <NotificationProvider>
         <ScrollToTop />
         <OfflineBanner />
         <InstallPWA />
@@ -110,6 +112,7 @@ export default function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
         </Suspense>
+      </NotificationProvider>
       </AuthProvider>
     </BrowserRouter>
     {ReactQueryDevtools && (
