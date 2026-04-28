@@ -41,6 +41,41 @@ function monthBounds(year, month) {
   return { from: toDateString(firstDay), to: toDateString(to) }
 }
 
+// Pure function : pour chaque jour de la période, somme Sessions + Articles
+// + cumul total (running sum) sur tout le mois.
+// Tous les jours sont initialisés à 0 pour que le graphe affiche bien
+// la période entière, même les jours sans transaction.
+function computeRevenueByDay(transactions, from, to) {
+  const map = {}
+  const start = new Date(from)
+  const end = new Date(to)
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const key = toDateString(d)
+    map[key] = { date: key, sessions: 0, articles: 0 }
+  }
+  transactions.forEach((tx) => {
+    const day = (tx.created_at || '').split('T')[0]
+    if (!map[day]) return
+    const amount = Number(tx.amount) || 0
+    const isSession = tx.type === 'debit_session'
+                   || (tx.type === 'external_payment' && tx.booking_id)
+    const isArticle = tx.type === 'debit_product'
+                   || (tx.type === 'external_payment' && tx.product_id)
+    if (isSession) map[day].sessions += amount
+    if (isArticle) map[day].articles += amount
+  })
+  const sorted = Object.values(map).sort((a, b) => a.date.localeCompare(b.date))
+  let cumul = 0
+  return sorted.map((d) => {
+    cumul += d.sessions + d.articles
+    return {
+      ...d,
+      total_cumule: cumul,
+      label: new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+    }
+  })
+}
+
 const MONTH_NAMES = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
 
 export default function AdminDash() {
@@ -122,33 +157,11 @@ export default function AdminDash() {
     return { caSessions, caArticles, recharges, encaissementCaisse, caTotal: caSessions + caArticles }
   }, [transactions])
 
-  // CA par jour : sessions + articles (le "vrai" chiffre d'affaires)
-  const revenueByDay = useMemo(() => {
-    const map = {}
-    // Borner sur la période [from, to] et initialiser tous les jours à 0
-    const startDate = new Date(from)
-    const endDate = new Date(to)
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const key = toDateString(d)
-      map[key] = { date: key, sessions: 0, articles: 0 }
-    }
-    transactions.forEach((tx) => {
-      const day = tx.created_at.split('T')[0]
-      if (!map[day]) return
-      const amount = parseFloat(tx.amount) || 0
-      const isSession = tx.type === 'debit_session'
-                     || (tx.type === 'external_payment' && tx.booking_id)
-      const isArticle = tx.type === 'debit_product'
-                     || (tx.type === 'external_payment' && tx.product_id)
-      if (isSession) map[day].sessions += amount
-      if (isArticle) map[day].articles += amount
-    })
-    return Object.values(map).sort((a, b) => a.date.localeCompare(b.date))
-      .map((d) => ({
-        ...d,
-        label: new Date(d.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
-      }))
-  }, [transactions, from, to])
+  // CA par jour : Sessions, Articles + cumul total (running sum)
+  const revenueByDay = useMemo(
+    () => computeRevenueByDay(transactions, from, to),
+    [transactions, from, to]
+  )
 
   // Transaction type breakdown for pie
   const txBreakdown = useMemo(() => {
