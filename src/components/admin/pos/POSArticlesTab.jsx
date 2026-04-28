@@ -8,31 +8,25 @@ function ProductCard({ p, categoryName, qtyInCart, onClick }) {
   return (
     <button
       onClick={onClick}
-      className={`relative p-3.5 rounded-[16px] border-2 transition-all text-left cursor-pointer active:scale-[0.97] flex flex-col gap-2 min-h-[120px] ${
+      className={`relative p-2.5 rounded-[12px] border-2 transition-all text-left cursor-pointer active:scale-[0.97] flex flex-col gap-1 ${
         inCart
           ? 'border-primary bg-primary/5 shadow-[0_4px_12px_rgba(11,39,120,0.12)]'
           : 'border-transparent bg-white hover:border-primary/20 hover:shadow-[0_4px_12px_rgba(11,39,120,0.08)]'
       }`}
     >
-      {/* Badge qty au panier */}
       {inCart && (
-        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shadow-md">
+        <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold flex items-center justify-center shadow-md">
           {qtyInCart}
         </div>
       )}
 
-      <Badge color="primary" className="!text-[10px] !px-2 !py-0.5 self-start">{categoryName}</Badge>
+      <Badge color="primary" className="!text-[9px] !px-1.5 !py-0.5 self-start">{categoryName}</Badge>
 
-      {/* Nom */}
-      <p className="text-sm font-semibold text-text leading-tight line-clamp-2 flex-1">{p.name}</p>
+      <p className="text-[13px] font-semibold text-text leading-tight line-clamp-2 mt-0.5">{p.name}</p>
 
-      {/* Prix */}
-      <div className="flex items-baseline justify-between border-t border-separator pt-2">
-        <p className="text-xl font-bold text-primary leading-none">{parseFloat(p.price).toFixed(2)}<span className="text-sm">€</span></p>
-        <span className="text-[10px] text-text-tertiary uppercase tracking-wide font-medium">
-          Ajouter
-        </span>
-      </div>
+      <p className="text-base font-bold text-primary leading-none mt-1">
+        {parseFloat(p.price).toFixed(2)}<span className="text-xs">€</span>
+      </p>
     </button>
   )
 }
