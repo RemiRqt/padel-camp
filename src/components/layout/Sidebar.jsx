@@ -59,8 +59,8 @@ export default function Sidebar() {
   return (
     <aside className="hidden lg:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-separator p-4">
       <div className="flex items-center gap-3 px-4 py-3 mb-6">
-        <div className="w-10 h-10 rounded-[12px] bg-primary flex items-center justify-center p-1.5">
-          <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full" />
+        <div className="w-12 h-12 flex items-center justify-center shrink-0">
+          <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full object-contain" />
         </div>
         <div>
           <h1 className="text-sm font-bold text-text leading-tight">Padel Camp</h1>

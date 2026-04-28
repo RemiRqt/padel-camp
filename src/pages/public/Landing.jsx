@@ -71,8 +71,8 @@ export default function Landing() {
         <div className="absolute top-0 right-0 w-64 h-64 bg-lime/10 rounded-full -translate-y-1/2 translate-x-1/3" />
         <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/4" />
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <div className="w-20 h-20 rounded-[20px] bg-white/10 backdrop-blur-sm mx-auto mb-6 flex items-center justify-center border border-white/10 p-3">
-            <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full" />
+          <div className="w-28 h-28 mx-auto mb-6 flex items-center justify-center">
+            <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold mb-2">{clubName}</h1>
           <p className="text-white/60 mb-2 text-sm">{clubDesc}</p>
