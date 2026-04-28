@@ -148,10 +148,10 @@ export default function TournamentDetailView({
                     <span className="flex items-center gap-0.5"><Award className="w-3 h-3" />{reg.player1_license}</span>
                     <span>/</span>
                     <span className="flex items-center gap-0.5"><Award className="w-3 h-3" />{reg.player2_license}</span>
-                    {reg.player2_is_external && <span className="text-text-secondary">\u00B7 Externe</span>}
+                    {reg.player2_is_external && <span className="text-text-secondary">{'\u00B7'} Externe</span>}
                     {reg.status === 'approved' && (
                       <>
-                        <span>\u00B7</span>
+                        <span>{'\u00B7'}</span>
                         <span className={reg.player1_confirmed ? 'text-success' : 'text-text-tertiary'}>
                           {reg.player1_confirmed ? '\u2713' : '\u25CB'} {reg.player1_name.split(' ')[0]}
                         </span>
