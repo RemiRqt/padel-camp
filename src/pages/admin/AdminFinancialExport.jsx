@@ -183,7 +183,7 @@ export default function AdminFinancialExport() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [from, to])
 
   const kpis = computeKPIs(txs)
 
