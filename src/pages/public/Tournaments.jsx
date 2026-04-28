@@ -23,6 +23,7 @@ export default function Tournaments() {
   const [loading, setLoading] = useState(true)
   const [levelFilter, setLevelFilter] = useState('Tous')
   const [catFilter, setCatFilter] = useState('Toutes')
+  const [timeFilter, setTimeFilter] = useState('upcoming') // 'upcoming' | 'past'
 
   useEffect(() => {
     async function load() {
@@ -51,8 +52,14 @@ export default function Tournaments() {
     })
   }, [tournaments, levelFilter, catFilter])
 
-  const upcoming = filtered.filter((t) => t.date >= new Date().toISOString().split('T')[0])
-  const past = filtered.filter((t) => t.date < new Date().toISOString().split('T')[0])
+  const today = new Date().toISOString().split('T')[0]
+  const upcoming = filtered
+    .filter((t) => t.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const past = filtered
+    .filter((t) => t.date < today)
+    .sort((a, b) => b.date.localeCompare(a.date))
+  const visibleList = timeFilter === 'upcoming' ? upcoming : past
 
   return (
     <PageWrapper>
@@ -60,6 +67,26 @@ export default function Tournaments() {
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-primary" />
           <h1 className="text-2xl font-bold text-text">Tournois</h1>
+        </div>
+
+        {/* Time filter (segmented) */}
+        <div className="flex bg-bg p-1 rounded-[12px]">
+          <button
+            onClick={() => setTimeFilter('upcoming')}
+            className={`flex-1 py-2 rounded-[10px] text-sm font-semibold transition-colors cursor-pointer ${
+              timeFilter === 'upcoming' ? 'bg-white text-primary shadow-sm' : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            À venir ({upcoming.length})
+          </button>
+          <button
+            onClick={() => setTimeFilter('past')}
+            className={`flex-1 py-2 rounded-[10px] text-sm font-semibold transition-colors cursor-pointer ${
+              timeFilter === 'past' ? 'bg-white text-primary shadow-sm' : 'text-text-secondary hover:text-text'
+            }`}
+          >
+            Terminés ({past.length})
+          </button>
         </div>
 
         {/* Filters */}
@@ -109,47 +136,26 @@ export default function Tournaments() {
           </div>
         ) : (
           <>
-            {/* Upcoming */}
-            {upcoming.length > 0 && (
+            {visibleList.length > 0 ? (
               <div className="space-y-3">
-                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  À venir ({upcoming.length})
-                </p>
-                {upcoming.map((t) => (
+                {visibleList.map((t) => (
                   <TournamentCard
                     key={t.id}
                     tournament={t}
                     regCount={t.reg_count || 0}
                     isLoggedIn={!!user}
+                    isPast={timeFilter === 'past'}
                     myRegStatus={myRegs[t.id]}
                   />
                 ))}
               </div>
-            )}
-
-            {/* Past */}
-            {past.length > 0 && (
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                  Passés ({past.length})
-                </p>
-                {past.map((t) => (
-                  <TournamentCard
-                    key={t.id}
-                    tournament={t}
-                    regCount={t.reg_count || 0}
-                    isLoggedIn={!!user}
-                    isPast
-                    myRegStatus={myRegs[t.id]}
-                  />
-                ))}
-              </div>
-            )}
-
-            {upcoming.length === 0 && past.length === 0 && (
+            ) : (
               <Card className="text-center !py-10">
                 <Trophy className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
-                <p className="text-sm text-text-tertiary">Aucun tournoi trouvé avec ces filtres</p>
+                <p className="text-sm text-text-tertiary">
+                  {timeFilter === 'upcoming' ? 'Aucun tournoi à venir' : 'Aucun tournoi passé'}
+                  {(levelFilter !== 'Tous' || catFilter !== 'Toutes') && ' avec ces filtres'}
+                </p>
               </Card>
             )}
           </>
