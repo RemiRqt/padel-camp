@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bell, Trophy, UserPlus, Clock, ShieldCheck, CheckCheck } from 'lucide-react'
 import { useNotifications } from '@/context/NotificationContext'
@@ -5,6 +6,7 @@ import { formatRelativeTime } from '@/utils/formatDate'
 import PageWrapper from '@/components/layout/PageWrapper'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
+import AdminRegistrationReviewModal from '@/components/notifications/AdminRegistrationReviewModal'
 
 const ICONS = {
   booking_invitation: UserPlus,
@@ -23,7 +25,8 @@ const TYPE_LABELS = {
 }
 
 export default function AdminNotifications() {
-  const { notifications, unreadCount, loading, markAsRead, markAllAsRead } = useNotifications()
+  const { notifications, unreadCount, loading, markAsRead, markAllAsRead, refresh } = useNotifications()
+  const [reviewRegId, setReviewRegId] = useState(null)
 
   return (
     <PageWrapper title="Notifications">
@@ -64,6 +67,7 @@ export default function AdminNotifications() {
           {notifications.map((n) => {
             const Icon = ICONS[n.type] || Bell
             const isUnread = !n.read_at
+            const isReview = n.type === 'tournament_admin_review_required'
             const inner = (
               <Card
                 className={`!p-4 transition-colors hover:bg-bg cursor-pointer ${
@@ -95,6 +99,20 @@ export default function AdminNotifications() {
               </Card>
             )
             const handleClick = () => { if (isUnread) markAsRead(n.id) }
+            if (isReview) {
+              const regId = n.metadata?.registration_id
+              return (
+                <div
+                  key={n.id}
+                  onClick={() => {
+                    handleClick()
+                    if (regId) setReviewRegId(regId)
+                  }}
+                >
+                  {inner}
+                </div>
+              )
+            }
             return n.link ? (
               <Link key={n.id} to={n.link} onClick={handleClick}>{inner}</Link>
             ) : (
@@ -103,6 +121,13 @@ export default function AdminNotifications() {
           })}
         </div>
       )}
+
+      <AdminRegistrationReviewModal
+        registrationId={reviewRegId}
+        isOpen={!!reviewRegId}
+        onClose={() => setReviewRegId(null)}
+        onResolved={refresh}
+      />
     </PageWrapper>
   )
 }

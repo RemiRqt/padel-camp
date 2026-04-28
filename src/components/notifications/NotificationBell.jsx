@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bell, Trophy, UserPlus, Clock, ShieldCheck } from 'lucide-react'
 import { useNotifications } from '@/context/NotificationContext'
 import { formatRelativeTime } from '@/utils/formatDate'
+import AdminRegistrationReviewModal from '@/components/notifications/AdminRegistrationReviewModal'
 
 const ICONS = {
   booking_invitation: UserPlus,
@@ -13,8 +14,9 @@ const ICONS = {
 }
 
 export default function NotificationBell({ align = 'right' }) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications()
+  const { notifications, unreadCount, markAsRead, markAllAsRead, refresh } = useNotifications()
   const [open, setOpen] = useState(false)
+  const [reviewRegId, setReviewRegId] = useState(null)
   const ref = useRef(null)
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export default function NotificationBell({ align = 'right' }) {
               notifications.map((n) => {
                 const Icon = ICONS[n.type] || Bell
                 const isUnread = !n.read_at
+                const isReview = n.type === 'tournament_admin_review_required'
                 const inner = (
                   <div className={`flex items-start gap-3 px-4 py-3 hover:bg-bg cursor-pointer border-b border-separator last:border-0 ${isUnread ? 'bg-primary/[0.03]' : ''}`}>
                     <div className="w-8 h-8 rounded-[8px] bg-primary/10 flex items-center justify-center shrink-0">
@@ -83,6 +86,21 @@ export default function NotificationBell({ align = 'right' }) {
                     {isUnread && <span className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />}
                   </div>
                 )
+                if (isReview) {
+                  const regId = n.metadata?.registration_id
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={() => {
+                        markAsRead(n.id)
+                        setOpen(false)
+                        if (regId) setReviewRegId(regId)
+                      }}
+                    >
+                      {inner}
+                    </div>
+                  )
+                }
                 return n.link ? (
                   <Link key={n.id} to={n.link} onClick={() => handleItemClick(n.id)}>
                     {inner}
@@ -95,6 +113,13 @@ export default function NotificationBell({ align = 'right' }) {
           </div>
         </div>
       )}
+
+      <AdminRegistrationReviewModal
+        registrationId={reviewRegId}
+        isOpen={!!reviewRegId}
+        onClose={() => setReviewRegId(null)}
+        onResolved={refresh}
+      />
     </div>
   )
 }

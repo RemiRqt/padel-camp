@@ -187,8 +187,16 @@ export default function TournamentDetailView({
                     </>
                   )}
                   {['approved', 'confirmed'].includes(reg.status) && (
-                    <Button size="sm" variant="ghost" className="!text-danger" loading={actionLoading === reg.id} onClick={() => onCancelAndPromote(reg.id)}>
-                      <X className="w-3.5 h-3.5 mr-1" />Annuler
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="!text-danger !px-2"
+                      loading={actionLoading === reg.id}
+                      onClick={() => onCancelAndPromote(reg.id)}
+                      aria-label="Annuler l'inscription"
+                      title="Annuler l'inscription"
+                    >
+                      <X className="w-4 h-4" />
                     </Button>
                   )}
                 </div>

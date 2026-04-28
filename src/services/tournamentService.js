@@ -31,6 +31,16 @@ export async function fetchTournamentById(id) {
   return data
 }
 
+export async function fetchRegistrationById(id) {
+  const { data, error } = await supabase
+    .from('tournament_registrations')
+    .select('id, tournament_id, player1_uid, player1_name, player1_license, player2_uid, player2_name, player2_license, player2_is_external, status, created_at, tournaments(id, name, date, start_time, end_time, max_teams)')
+    .eq('id', id)
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function fetchRegistrations(tournamentId) {
   const { data, error } = await supabase
     .from('tournament_registrations')
