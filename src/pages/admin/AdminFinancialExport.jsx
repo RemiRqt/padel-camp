@@ -198,35 +198,29 @@ export default function AdminFinancialExport() {
   const handleExcelExport = async () => {
     setExporting(true)
     try {
-      const { exportExcelMultiSheet } = await import('@/utils/export')
-      const byMethod = (m) => txs.filter((t) => t.payment_method === m).map(formatTx)
-      await exportExcelMultiSheet([
-        { name: 'Toutes', columns: TX_COLUMNS, data: txs.map(formatTx) },
-        { name: 'Wallet', columns: TX_COLUMNS, data: byMethod('balance') },
-        { name: 'CB', columns: TX_COLUMNS, data: byMethod('cb') },
-        { name: 'Espèces', columns: TX_COLUMNS, data: byMethod('cash') },
-        { name: 'Déclaration TVA', columns: TVA_SUMMARY_COLUMNS, data: tvaBreakdown.map(formatSummary) },
-      ], `rapport-financier-${from}-${to}`)
-    } catch { toast.error('Erreur export Excel') }
-    finally { setExporting(false) }
+      const { exportComptableExcel } = await import('@/utils/exportComptable')
+      await exportComptableExcel({
+        from, to, txs, kpis, tvaBreakdown,
+        filename: `rapport-financier-${from}-${to}`,
+      })
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur export Excel')
+    } finally { setExporting(false) }
   }
 
   const handlePDFExport = async () => {
     setExporting(true)
     try {
-      const { exportPDF, exportPDFMultiTable } = await import('@/utils/export')
-      const title = `Rapport financier ${from} → ${to}`
-      const tables = [
-        { heading: 'Transactions', columns: TX_COLUMNS, data: txs.map(formatTx) },
-        { heading: 'Déclaration TVA par taux', columns: TVA_SUMMARY_COLUMNS, data: tvaBreakdown.map(formatSummary) },
-      ]
-      if (typeof exportPDFMultiTable === 'function') {
-        await exportPDFMultiTable(tables, `rapport-financier-${from}-${to}`, title)
-      } else {
-        await exportPDF(txs.map(formatTx), TX_COLUMNS, `rapport-financier-${from}-${to}`, title)
-      }
-    } catch { toast.error('Erreur export PDF') }
-    finally { setExporting(false) }
+      const { exportComptablePDF } = await import('@/utils/exportComptable')
+      await exportComptablePDF({
+        from, to, txs, kpis, tvaBreakdown,
+        filename: `rapport-financier-${from}-${to}`,
+      })
+    } catch (err) {
+      console.error(err)
+      toast.error('Erreur export PDF')
+    } finally { setExporting(false) }
   }
 
   const countMethod = (m) => txs.filter((t) => t.payment_method === m).length
