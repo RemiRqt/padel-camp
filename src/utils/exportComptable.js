@@ -49,12 +49,13 @@ export async function exportComptableExcel({ from, to, txs, kpis, tvaBreakdown, 
     ['Total Espèces', kpis.encaissement.cash],
     ['Total caisse (CB + espèces)', kpis.encaissement.total],
     ['Wallet débité (info, déjà encaissé via recharges)', kpis.encaissement.walletDebited],
+    ['Bonus consommé (cadeau formule, sans contrepartie caisse)', kpis.encaissement.bonusConsumed || 0],
     [],
     ['TVA COLLECTÉE TOTALE', tvaBreakdown.reduce((s, b) => s + b.tva, 0)],
   ]
   const wsSynth = XLSX.utils.aoa_to_sheet(synthRows)
   // Format € sur la colonne B des lignes financières
-  ;[5, 6, 7, 10, 11, 12, 13, 15].forEach((rowIdx) => {
+  ;[5, 6, 7, 10, 11, 12, 13, 14, 16].forEach((rowIdx) => {
     const ref = XLSX.utils.encode_cell({ r: rowIdx, c: 1 })
     if (wsSynth[ref]) wsSynth[ref].z = FMT_EUR
   })
@@ -68,6 +69,7 @@ export async function exportComptableExcel({ from, to, txs, kpis, tvaBreakdown, 
     { s: { r: 1, c: 0 }, e: { r: 1, c: 1 } },
     { s: { r: 2, c: 0 }, e: { r: 2, c: 1 } },
     { s: { r: 9, c: 0 }, e: { r: 9, c: 1 } },
+    { s: { r: 15, c: 0 }, e: { r: 15, c: 1 } },
   ]
   XLSX.utils.book_append_sheet(wb, wsSynth, 'Synthèse')
 
@@ -220,6 +222,7 @@ export async function exportComptablePDF({ from, to, txs, kpis, tvaBreakdown, fi
       [{ content: 'Total caisse (CB + Espèces)', styles: { fontStyle: 'bold' } },
        { content: fmt(kpis.encaissement.total), styles: { fontStyle: 'bold' } }],
       ['Wallet débité (info)', fmt(kpis.encaissement.walletDebited)],
+      ['Bonus consommé (info)', fmt(kpis.encaissement.bonusConsumed || 0)],
       [{ content: 'TVA collectée totale', styles: { fontStyle: 'bold' } },
        { content: fmt(tvaBreakdown.reduce((s, b) => s + b.tva, 0)), styles: { fontStyle: 'bold' } }],
     ],

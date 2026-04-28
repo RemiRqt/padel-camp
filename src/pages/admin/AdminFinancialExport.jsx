@@ -73,7 +73,7 @@ const EMPTY_SUMMARY = {
   sessions: { count: 0, total: 0, wallet: 0, cb: 0, cash: 0 },
   articles: { count: 0, total: 0, wallet: 0, cb: 0, cash: 0 },
   recharges: { count: 0, total: 0, cb: 0, cash: 0 },
-  encaissement: { cb: 0, cash: 0, total: 0, walletDebited: 0 },
+  encaissement: { cb: 0, cash: 0, total: 0, walletDebited: 0, bonusConsumed: 0 },
   totals: { ht: 0, tva: 0, ttc: 0 },
   counts: { balance: 0, cb: 0, cash: 0, total: 0 },
 }
@@ -300,7 +300,7 @@ export default function AdminFinancialExport() {
         {/* Encaissement caisse */}
         <Card elevated>
           <p className="text-xs font-semibold text-text-secondary uppercase mb-3">Encaissement caisse</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div>
               <p className="text-xs text-text-tertiary mb-0.5">Total CB</p>
               <p className="text-lg font-bold text-primary">{summary.encaissement.cb.toFixed(2)} €</p>
@@ -313,6 +313,11 @@ export default function AdminFinancialExport() {
               <p className="text-xs text-text-tertiary mb-0.5">Wallet débité</p>
               <p className="text-lg font-bold text-text-secondary">{summary.encaissement.walletDebited.toFixed(2)} €</p>
               <p className="text-[10px] text-text-tertiary leading-tight">déjà encaissé via recharges</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-tertiary mb-0.5">Bonus consommé</p>
+              <p className="text-lg font-bold text-warning">{summary.encaissement.bonusConsumed.toFixed(2)} €</p>
+              <p className="text-[10px] text-text-tertiary leading-tight">cadeau formule, sans contrepartie caisse</p>
             </div>
             <div className="border-l border-separator pl-3">
               <p className="text-xs text-text-tertiary mb-0.5">Total caisse</p>

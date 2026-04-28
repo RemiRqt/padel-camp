@@ -102,6 +102,7 @@ export async function fetchFinancialSummary(from, to) {
         cash: Number(s.encaissement_cash) || 0,
         total: Number(s.encaissement_total) || 0,
         walletDebited: Number(s.wallet_debited) || 0,
+        bonusConsumed: Number(s.bonus_consumed) || 0,
       },
       totals: {
         ht: Number(s.total_ht) || 0,
