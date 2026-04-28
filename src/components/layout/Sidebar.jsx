@@ -1,8 +1,8 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 import {
   Home, CalendarDays, Trophy, User, Menu, Heart,
-  LayoutDashboard, Users, Settings, ShoppingCart, Package, CreditCard, Ticket, Calendar, FileBarChart
+  LayoutDashboard, Users, Settings, ShoppingCart, Package, CreditCard, Ticket, Calendar, FileBarChart, LogOut
 } from 'lucide-react'
 
 const userLinks = [
@@ -48,7 +48,13 @@ function SidebarLink({ to, icon: Icon, label }) {
 }
 
 export default function Sidebar() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, profile, signOut } = useAuth()
+  const navigate = useNavigate()
+
+  const handleSignOut = async () => {
+    await signOut()
+    navigate('/login')
+  }
 
   return (
     <aside className="hidden lg:flex flex-col w-64 h-screen fixed left-0 top-0 bg-white border-r border-separator p-4">
@@ -71,6 +77,27 @@ export default function Sidebar() {
           <SidebarLink key={link.to} {...link} />
         ))}
       </nav>
+
+      <div className="pt-3 mt-3 border-t border-separator">
+        {profile && (
+          <div className="flex items-center gap-3 px-4 py-2 mb-2">
+            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <span className="text-sm font-bold text-primary">{profile.display_name?.charAt(0)?.toUpperCase()}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-text truncate">{profile.display_name}</p>
+              <p className="text-xs text-text-secondary truncate">{profile.email}</p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-[12px] bg-danger/5 hover:bg-danger/10 transition-colors cursor-pointer"
+        >
+          <LogOut className="w-5 h-5 text-danger" strokeWidth={2} />
+          <span className="text-sm font-semibold text-danger">Se déconnecter</span>
+        </button>
+      </div>
     </aside>
   )
 }
