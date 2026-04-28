@@ -27,7 +27,7 @@ export default function CalendarTournamentModal({ isOpen, onClose, form, setForm
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-text mb-1.5">Cat\u00e9gorie</label>
+            <label className="block text-sm font-medium text-text mb-1.5">{'Cat\u00e9gorie'}</label>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="w-full px-3 py-3 rounded-[12px] bg-white border border-separator text-sm capitalize">
               {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
