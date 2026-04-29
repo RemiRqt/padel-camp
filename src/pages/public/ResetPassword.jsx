@@ -12,16 +12,65 @@ export default function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [authorized, setAuthorized] = useState(false)
+  const [account, setAccount] = useState({ displayName: '', email: '' })
   const navigate = useNavigate()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session) setAuthorized(true)
-      else {
-        toast.error('Lien expiré ou invalide')
-        navigate('/forgot-password', { replace: true })
+    let cancelled = false
+    let timer = null
+
+    const loadProfile = async (session) => {
+      const email = session.user?.email || ''
+      let displayName = session.user?.user_metadata?.display_name || ''
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('display_name, email')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        if (profile?.display_name) displayName = profile.display_name
+      } catch {
+        /* fallback sur user_metadata */
+      }
+      if (!cancelled) {
+        setAccount({ displayName, email })
+        setAuthorized(true)
+      }
+    }
+
+    const tryInit = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data?.session) {
+        await loadProfile(data.session)
+        return true
+      }
+      return false
+    }
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!session) return
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        loadProfile(session)
       }
     })
+
+    tryInit().then((ok) => {
+      if (ok || cancelled) return
+      timer = setTimeout(async () => {
+        if (cancelled) return
+        const ok2 = await tryInit()
+        if (!ok2 && !cancelled) {
+          toast.error('Lien expiré ou invalide')
+          navigate('/forgot-password', { replace: true })
+        }
+      }, 1500)
+    })
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      sub?.subscription?.unsubscribe?.()
+    }
   }, [navigate])
 
   const handleSubmit = async (e) => {
@@ -57,6 +106,12 @@ export default function ResetPassword() {
             <img src="/icon-192.png" alt="Padel Camp" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-2xl font-bold text-text">Nouveau mot de passe</h1>
+          {account.email && (
+            <p className="text-sm text-text mt-2 font-medium">
+              {account.displayName ? `${account.displayName} ` : ''}
+              <span className="text-text-secondary font-normal">({account.email})</span>
+            </p>
+          )}
           <p className="text-sm text-text-secondary mt-1">
             Choisissez un mot de passe d'au moins 8 caractères.
           </p>

@@ -9,7 +9,10 @@ export default function AuthCallback() {
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.slice(1))
-    const isRecovery = hashParams.get('type') === 'recovery'
+    const queryParams = new URLSearchParams(window.location.search)
+    const isRecovery =
+      hashParams.get('type') === 'recovery' ||
+      queryParams.get('next') === 'reset-password'
 
     const handleCallback = async () => {
       try {
