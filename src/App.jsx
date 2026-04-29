@@ -18,6 +18,8 @@ import ScrollToTop from '@/components/layout/ScrollToTop'
 import Landing from '@/pages/public/Landing'
 const Login = lazy(() => import('@/pages/public/Login'))
 const Register = lazy(() => import('@/pages/public/Register'))
+const ForgotPassword = lazy(() => import('@/pages/public/ForgotPassword'))
+const ResetPassword = lazy(() => import('@/pages/public/ResetPassword'))
 const Tournaments = lazy(() => import('@/pages/public/Tournaments'))
 const Events = lazy(() => import('@/pages/public/Events'))
 const AuthCallback = lazy(() => import('@/pages/AuthCallback'))
@@ -80,6 +82,8 @@ export default function App() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
 
           {/* Routes avec layout (nav) */}

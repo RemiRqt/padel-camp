@@ -8,10 +8,17 @@ export default function AuthCallback() {
   const [status, setStatus] = useState('loading')
 
   useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.slice(1))
+    const isRecovery = hashParams.get('type') === 'recovery'
+
     const handleCallback = async () => {
       try {
         const { data } = await supabase.auth.getSession()
         if (data?.session) {
+          if (isRecovery) {
+            navigate('/reset-password', { replace: true })
+            return
+          }
           setStatus('success')
           setTimeout(() => navigate('/dashboard'), 1500)
         } else {

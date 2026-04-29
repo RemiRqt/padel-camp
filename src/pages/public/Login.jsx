@@ -76,6 +76,11 @@ export default function Login() {
               </button>
             }
           />
+          <div className="text-right -mt-1">
+            <Link to="/forgot-password" className="text-sm text-primary font-medium hover:underline">
+              Mot de passe oublié ?
+            </Link>
+          </div>
           <Button type="submit" loading={loading} className="w-full">
             Se connecter
           </Button>

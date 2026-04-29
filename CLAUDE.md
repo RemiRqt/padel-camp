@@ -24,6 +24,24 @@ VITE_SUPABASE_ANON_KEY=sb_publishable_SW_i7F1Lw1vW2an6ABwKcQ_BjLybFCO
 ```
 Client initialisé dans `src/lib/supabase.js` via `createClient(url, anonKey)`.
 
+## Emails Auth Supabase
+**SMTP custom** : Resend free tier (3000/mois, 100/jour) configuré dans Supabase Dashboard → Project Settings → Authentication → SMTP Settings :
+- Host : `smtp.resend.com` / Port : `465` / User : `resend` / Pass : `<RESEND_API_KEY>`
+- Sender : `onboarding@resend.dev` (démo) → à migrer sur domaine custom au go-live (seule la variable change)
+- Sender name : `Padel Camp Achères`
+
+**6 templates HTML versionnés** dans `supabase/email-templates/` (FR, brandés `#0B2778` + `#D4E620`, mobile-friendly, mode clair forcé) :
+- `confirm-signup.html` — Confirm signup
+- `invite-user.html` — Invite user
+- `magic-link.html` — Magic Link
+- `change-email.html` — Change Email Address
+- `reset-password.html` — Reset Password
+- `reauthentication.html` — Reauthentication (code 6 chiffres)
+
+**Procédure de mise à jour** : éditer le fichier HTML dans le repo (source de vérité) → copier-coller le contenu dans Supabase Dashboard → Authentication → Email Templates → Save. Tester avec "Send test email".
+
+**Variables Supabase disponibles** : `{{ .ConfirmationURL }}`, `{{ .Token }}`, `{{ .Email }}`, `{{ .NewEmail }}`, `{{ .Data.<custom_meta> }}`.
+
 ## Architecture des dossiers
 ```
 src/
